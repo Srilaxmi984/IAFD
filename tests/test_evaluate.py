@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from iafd.evaluate import (threshold_at_fpr, confusion_at_threshold, evaluate_scores,
+from iafd.evaluate import (recall_fpr_table, threshold_at_fpr, confusion_at_threshold, evaluate_scores,
                            precision_at_prevalence)
 
 
@@ -48,3 +48,13 @@ def test_threshold_validation():
         threshold_at_fpr(np.array([1, 1]), np.array([0.1, 0.2]), 0.01)
     with pytest.raises(ValueError):
         threshold_at_fpr(np.array([0, 1]), np.array([0.1, 0.2]), 1.5)
+
+
+def test_recall_fpr_table_monotone_and_capped():
+    rng = np.random.default_rng(1)
+    y = np.r_[np.zeros(20_000, int), np.ones(200, int)]
+    s = np.r_[rng.random(20_000), 0.4 + 0.6 * rng.random(200)]
+    rows = recall_fpr_table(y, s, y, s, [0.0001, 0.001, 0.01, 0.05])
+    assert all(r["val_fpr"] <= r["fpr_cap"] for r in rows)
+    rec = [r["val_recall"] for r in rows]
+    assert rec == sorted(rec)                      # looser cap never lowers recall

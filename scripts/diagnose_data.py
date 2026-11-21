@@ -17,26 +17,38 @@ def main():
     cfg = load_config()
     df = load_dataset(resolve(cfg["paths"]["parquet"]))
     fr = df[df["isFraud"] == 1]
+    cashy = df["type"].isin(["TRANSFER", "CASH_OUT"])
+    legit_c = df[(df["isFraud"] == 0) & cashy]
     print(f"rows={len(df):,} fraud={len(fr):,} ({len(fr)/len(df):.4%})")
 
-    print("\n[1] Sender activity (matters for velocity features)")
-    counts = df["orig_id"].map(df["orig_id"].value_counts())
-    print(f"  unique senders: {df['orig_id'].nunique():,} of {len(df):,} rows")
-    print(f"  rows whose sender appears more than once: {(counts > 1).mean():.4%}")
-    print(f"  fraud rows whose sender appears more than once: {(counts[df['isFraud'] == 1] > 1).mean():.4%}")
+    print("\n[1] Sender activity")
+    sc = df["orig_id"].map(df["orig_id"].value_counts())
+    print(f"  rows whose sender appears more than once: {(sc > 1).mean():.4%}")
+    print(f"  fraud rows whose sender appears more than once: {(sc[df['isFraud'] == 1] > 1).mean():.4%}")
 
-    print("\n[2] Fraud by transaction type")
+    print("\n[2] Destination activity (TRANSFER/CASH_OUT rows only)")
+    dc = df["dest_id"].map(df["dest_id"].value_counts())
+    fd, ld = dc[(df["isFraud"] == 1)], dc[(df["isFraud"] == 0) & cashy]
+    for name, x in (("fraud", fd), ("legit", ld)):
+        print(f"  {name}: dest appears more than once {(x > 1).mean():.2%} | median appearances {x.median():.0f} | 95th pct {x.quantile(.95):.0f}")
+    print("  (counts here use the whole dataset to test for signal; real features would use past rows only)")
+
+    print("\n[3] Fraud by transaction type")
     print(fr["type"].value_counts().to_string())
 
-    print("\n[3] Simple fraud signatures")
-    print(f"  fraud with newbalanceOrig == 0: {(fr['newbalanceOrig'] == 0).mean():.2%}")
-    print(f"  fraud with oldbalanceDest == 0: {(fr['oldbalanceDest'] == 0).mean():.2%}")
-    legit_te = df[(df['isFraud'] == 0) & df['type'].isin(['TRANSFER', 'CASH_OUT'])]
-    print(f"  legit TRANSFER/CASH_OUT with newbalanceOrig == 0: {(legit_te['newbalanceOrig'] == 0).mean():.2%}")
+    print("\n[4] Balance signatures, TRANSFER/CASH_OUT rows")
+    def emptied(d): return ((d["oldbalanceOrg"] > 0) & (d["newbalanceOrig"] == 0)).mean()
+    def zero_start(d): return (d["oldbalanceOrg"] == 0).mean()
+    print(f"  sender had a balance and was emptied: fraud {emptied(fr):.2%} | legit {emptied(legit_c):.2%}")
+    print(f"  sender balance already 0 before:      fraud {zero_start(fr):.2%} | legit {zero_start(legit_c):.2%}")
+    print(f"  receiver balance 0 before:            fraud {(fr['oldbalanceDest'] == 0).mean():.2%} | legit {(legit_c['oldbalanceDest'] == 0).mean():.2%}")
+    print(f"  receiver balance unchanged after:     fraud {(fr['oldbalanceDest'] == fr['newbalanceDest']).mean():.2%} | legit {(legit_c['oldbalanceDest'] == legit_c['newbalanceDest']).mean():.2%}")
 
-    print("\n[4] Why fraud rate rises late: rows per step bucket")
+    print("\n[5] Rows and fraud per step bucket")
     b = pd.cut(df["step"], [0, 120, 240, 355, 500, 743])
-    print(df.groupby(b, observed=True)["isFraud"].agg(rows="size", fraud="sum").to_string())
+    g = df.groupby(b, observed=True)["isFraud"].agg(rows="size", fraud="sum")
+    g["fraud_rate"] = (g["fraud"] / g["rows"]).map("{:.3%}".format)
+    print(g.to_string())
 
 
 if __name__ == "__main__":

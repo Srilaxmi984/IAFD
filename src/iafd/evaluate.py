@@ -54,3 +54,16 @@ def evaluate_scores(y_true: np.ndarray, scores: np.ndarray, thr: float,
     if reference_prevalence is not None:
         out["precision_at_ref_prev"] = precision_at_prevalence(out["recall"], out["fpr"], reference_prevalence)
     return out
+
+
+def recall_fpr_table(y_val, p_val, y_test, p_test, fpr_caps) -> list[dict]:
+    """For each FPR cap: threshold chosen on VALIDATION, then recall/FPR on val and test.
+    Shows how much recall survives as the false-alarm budget shrinks."""
+    rows = []
+    for cap in fpr_caps:
+        thr = threshold_at_fpr(y_val, p_val, cap)
+        v, t = confusion_at_threshold(y_val, p_val, thr), confusion_at_threshold(y_test, p_test, thr)
+        rows.append({"fpr_cap": cap, "threshold": thr,
+                     "val_recall": v["recall"], "val_fpr": v["fpr"],
+                     "test_recall": t["recall"], "test_fpr": t["fpr"], "test_fp": t["fp"], "test_fn": t["fn"]})
+    return rows

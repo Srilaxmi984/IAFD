@@ -14,7 +14,8 @@ dev_sample:       # small, fast subset for development only
   legit_fraction: 0.05    # keep ALL fraud rows + this fraction of legit rows
 
 constraints:
-  fpr_cap: 0.005          # max false-positive rate allowed when picking the threshold (validation only)
+  fpr_cap: 0.005          # primary cap used for the headline threshold (validation only)
+  fpr_caps: [0.005, 0.001, 0.0005, 0.0001]   # also report recall at these caps
 
 models:           # hyperparameters kept modest so full-data runs finish on a laptop
   lr:   {max_iter: 1000}

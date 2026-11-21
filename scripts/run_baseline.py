@@ -19,7 +19,7 @@ from iafd.config import load_config, resolve
 from iafd.data import load_dataset, chronological_split, check_split
 from iafd.features import build_features
 from iafd.models import ALL_MODELS, build_model, soft_vote
-from iafd.evaluate import threshold_at_fpr, evaluate_scores
+from iafd.evaluate import threshold_at_fpr, evaluate_scores, recall_fpr_table
 
 
 def main():
@@ -43,7 +43,9 @@ def main():
     ref_prev, cap, seed = float(ytr.mean()), cfg["constraints"]["fpr_cap"], cfg["seed"]
     print(f"features={args.feature_set} ({Xtr.shape[1]} cols)  fpr_cap={cap:.3%}  train prevalence={ref_prev:.4%}")
 
-    val_p, test_p, rows = {}, {}, []
+    caps = cfg["constraints"].get("fpr_caps", [cap])
+    exp = "A0" if args.feature_set == "paper" else "A"
+    val_p, test_p, rows, curve = {}, {}, [], []
 
     def record(name, pv, pt, secs):
         thr = threshold_at_fpr(yva, pv, cap)
@@ -56,6 +58,7 @@ def main():
                      "test_precision_at_train_prev": t["precision_at_ref_prev"],
                      "test_pr_auc": t["pr_auc"], "test_roc_auc": t["roc_auc"],
                      "tp": t["tp"], "fp": t["fp"], "fn": t["fn"], "tn": t["tn"]})
+        curve.extend({"experiment": exp, "model": name, **r} for r in recall_fpr_table(yva, pv, yte, pt, caps))
         print(f"  {name:9s} val recall={v['recall']:.3f} (fpr {v['fpr']:.4f}) | "
               f"test recall={t['recall']:.3f} fpr={t['fpr']:.4f} PR-AUC={t['pr_auc']:.3f}")
 
@@ -74,7 +77,13 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     tag = ("dev_" if args.dev else "") + ("A0_paper" if args.feature_set == "paper" else "A_engineered")
     pd.DataFrame(rows).to_csv(out_dir / f"experiment_{tag}.csv", index=False)
-    print(f"Saved {out_dir / f'experiment_{tag}.csv'}")
+    cdf = pd.DataFrame(curve)
+    cdf.to_csv(out_dir / f"experiment_{tag}_curve.csv", index=False)
+    print("\nTEST recall at each FPR cap (threshold chosen on validation):")
+    print(cdf.pivot(index="model", columns="fpr_cap", values="test_recall").round(4).to_string())
+    print("\nTEST false positives at each FPR cap:")
+    print(cdf.pivot(index="model", columns="fpr_cap", values="test_fp").to_string())
+    print(f"\nSaved {out_dir / f'experiment_{tag}.csv'} and the _curve.csv")
 
 
 if __name__ == "__main__":
