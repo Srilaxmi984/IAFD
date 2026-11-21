@@ -1,0 +1,19 @@
+# data and models stay local (PaySim CSV is ~470 MB; GitHub blocks files >100 MB)
+data/raw/*
+data/processed/*
+models/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!models/.gitkeep
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+.env
+*.joblib
+*.parquet
+*.csv
+!reports/*.csv

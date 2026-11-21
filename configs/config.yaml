@@ -1,0 +1,19 @@
+# Single source of truth for paths, split, and constraints.
+paths:
+  raw_csv: data/raw/PS_20174392719_1491204439457_log.csv   # PaySim file name from Kaggle
+  parquet: data/processed/paysim.parquet
+  dev_parquet: data/processed/paysim_dev.parquet
+  models_dir: models
+  reports_dir: reports
+
+split:            # chronological, by PaySim `step` (1 step = 1 hour)
+  train_end_step: 240
+  val_end_step: 355       # validation = 241..355, test = >355
+
+dev_sample:       # small, fast subset for development only
+  legit_fraction: 0.05    # keep ALL fraud rows + this fraction of legit rows
+
+constraints:
+  fpr_cap: 0.005          # max false-positive rate allowed when picking the threshold (validation only)
+
+seed: 42
