@@ -14,7 +14,8 @@ fraud detection in mobile money transactions*, Intelligent Decision Technologies
 
 ## Status
 - [x] Phase 1: repo, config, chunked data pipeline, chronological split, tests
-- [ ] Phase 2: features (balance errors, velocity) and baseline models (A)
+- [x] Phase 2a: balance-error features, evaluation under an FPR cap, baseline models (A0, A)
+- [ ] Phase 2b: velocity features (only if the data diagnostic shows they carry signal)
 - [ ] Phase 3: cost-sensitive (B), velocity (C), combined (D), ensemble
 - [ ] Phase 4: validation-only threshold at FPR cap, structuring defense (E)
 - [ ] Phase 5: SHAP, Streamlit app, final results
@@ -37,6 +38,16 @@ The PaySim CSV is ~470 MB, and GitHub blocks files over 100 MB, so `data/` is gi
    (all fraud + 5% of legit rows, for fast development only).
 
 Edit `configs/config.yaml` for paths, split steps and the FPR cap.
+
+## Run the baselines (experiment A)
+```bash
+python scripts/diagnose_data.py                         # facts about the data (run once)
+python scripts/run_baseline.py --dev                    # quick check on the dev sample
+python scripts/run_baseline.py --feature-set paper      # A0: the paper's 5 raw features
+python scripts/run_baseline.py --feature-set engineered # A : + balance-error features
+```
+Results are written to `reports/experiment_*.csv`. The threshold for each model is chosen on
+validation at the FPR cap; test is evaluated once at that threshold.
 
 ## Tests
 ```bash
