@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from iafd.evaluate import (recall_fpr_table, threshold_at_fpr, confusion_at_threshold, evaluate_scores,
+from iafd.evaluate import (threshold_at_recall, fp_at_recall_table, recall_fpr_table, threshold_at_fpr, confusion_at_threshold, evaluate_scores,
                            precision_at_prevalence)
 
 
@@ -58,3 +58,25 @@ def test_recall_fpr_table_monotone_and_capped():
     assert all(r["val_fpr"] <= r["fpr_cap"] for r in rows)
     rec = [r["val_recall"] for r in rows]
     assert rec == sorted(rec)                      # looser cap never lowers recall
+
+
+def test_threshold_at_recall_exact_with_ties():
+    y = np.r_[np.zeros(500, int), np.ones(10, int)]
+    s = np.r_[np.linspace(0, 0.9, 500), [0.2, 0.2, 0.2, 0.5, 0.5, 0.7, 0.8, 0.9, 0.95, 1.0]]
+    for tgt in (0.5, 0.8, 0.9, 1.0):
+        thr = threshold_at_recall(y, s, tgt)
+        assert confusion_at_threshold(y, s, thr)["recall"] >= tgt
+    with pytest.raises(ValueError):
+        threshold_at_recall(y, s, 0.0)
+    with pytest.raises(ValueError):
+        threshold_at_recall(np.zeros(5, int), np.arange(5.0), 0.9)
+
+
+def test_fp_at_recall_table_fp_grows_with_target():
+    rng = np.random.default_rng(2)
+    y = np.r_[np.zeros(20_000, int), np.ones(200, int)]
+    s = np.r_[rng.random(20_000), 0.3 + 0.7 * rng.random(200)]
+    rows = fp_at_recall_table(y, s, y, s, [0.9, 0.99, 0.999])
+    assert all(r["val_recall"] >= r["recall_target"] for r in rows)
+    fps = [r["test_fp"] for r in rows]
+    assert fps == sorted(fps)

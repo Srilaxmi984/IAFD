@@ -67,3 +67,29 @@ def recall_fpr_table(y_val, p_val, y_test, p_test, fpr_caps) -> list[dict]:
                      "val_recall": v["recall"], "val_fpr": v["fpr"],
                      "test_recall": t["recall"], "test_fpr": t["fpr"], "test_fp": t["fp"], "test_fn": t["fn"]})
     return rows
+
+
+def threshold_at_recall(y_true: np.ndarray, scores: np.ndarray, target: float) -> float:
+    """Return thr such that flagging `score > thr` gives recall >= target on this data
+    (exact with ties). Use on VALIDATION, then apply the threshold to test."""
+    if not 0 < target <= 1:
+        raise ValueError("target must be in (0, 1]")
+    pos = np.sort(scores[y_true == 1])                 # fraud scores, ascending
+    if len(pos) == 0:
+        raise ValueError("No fraud rows to calibrate the threshold on")
+    m = int(np.floor((1 - target) * len(pos)))         # frauds we may miss
+    if m >= len(pos):
+        return np.inf
+    return float(np.nextafter(pos[m], -np.inf))        # just below the (m+1)-th lowest fraud score
+
+
+def fp_at_recall_table(y_val, p_val, y_test, p_test, targets) -> list[dict]:
+    """For each recall target: threshold chosen on VALIDATION, then FPR / false positives on test."""
+    rows = []
+    for tgt in targets:
+        thr = threshold_at_recall(y_val, p_val, tgt)
+        v, t = confusion_at_threshold(y_val, p_val, thr), confusion_at_threshold(y_test, p_test, thr)
+        rows.append({"recall_target": tgt, "threshold": thr,
+                     "val_recall": v["recall"], "val_fpr": v["fpr"],
+                     "test_recall": t["recall"], "test_fpr": t["fpr"], "test_fp": t["fp"], "test_fn": t["fn"]})
+    return rows

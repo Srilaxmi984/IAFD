@@ -19,7 +19,7 @@ from iafd.config import load_config, resolve
 from iafd.data import load_dataset, chronological_split, check_split
 from iafd.features import build_features
 from iafd.models import ALL_MODELS, build_model, soft_vote
-from iafd.evaluate import threshold_at_fpr, evaluate_scores, recall_fpr_table
+from iafd.evaluate import threshold_at_fpr, evaluate_scores, recall_fpr_table, fp_at_recall_table
 
 
 def main():
@@ -44,8 +44,9 @@ def main():
     print(f"features={args.feature_set} ({Xtr.shape[1]} cols)  fpr_cap={cap:.3%}  train prevalence={ref_prev:.4%}")
 
     caps = cfg["constraints"].get("fpr_caps", [cap])
+    targets = cfg["constraints"].get("recall_targets", [0.99])
     exp = "A0" if args.feature_set == "paper" else "A"
-    val_p, test_p, rows, curve = {}, {}, [], []
+    val_p, test_p, rows, curve, rcurve = {}, {}, [], [], []
 
     def record(name, pv, pt, secs):
         thr = threshold_at_fpr(yva, pv, cap)
@@ -59,6 +60,7 @@ def main():
                      "test_pr_auc": t["pr_auc"], "test_roc_auc": t["roc_auc"],
                      "tp": t["tp"], "fp": t["fp"], "fn": t["fn"], "tn": t["tn"]})
         curve.extend({"experiment": exp, "model": name, **r} for r in recall_fpr_table(yva, pv, yte, pt, caps))
+        rcurve.extend({"experiment": exp, "model": name, **r} for r in fp_at_recall_table(yva, pv, yte, pt, targets))
         print(f"  {name:9s} val recall={v['recall']:.3f} (fpr {v['fpr']:.4f}) | "
               f"test recall={t['recall']:.3f} fpr={t['fpr']:.4f} PR-AUC={t['pr_auc']:.3f}")
 
@@ -83,7 +85,13 @@ def main():
     print(cdf.pivot(index="model", columns="fpr_cap", values="test_recall").round(4).to_string())
     print("\nTEST false positives at each FPR cap:")
     print(cdf.pivot(index="model", columns="fpr_cap", values="test_fp").to_string())
-    print(f"\nSaved {out_dir / f'experiment_{tag}.csv'} and the _curve.csv")
+    rdf = pd.DataFrame(rcurve)
+    rdf.to_csv(out_dir / f"experiment_{tag}_recall_targets.csv", index=False)
+    print("\nTEST false positives needed to reach each recall target (threshold chosen on validation):")
+    print(rdf.pivot(index="model", columns="recall_target", values="test_fp").to_string())
+    print("\nTEST recall actually achieved at those thresholds:")
+    print(rdf.pivot(index="model", columns="recall_target", values="test_recall").round(4).to_string())
+    print(f"\nSaved {out_dir / f'experiment_{tag}.csv'} and the _curve / _recall_targets files")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,8 @@ dev_sample:       # small, fast subset for development only
 
 constraints:
   fpr_cap: 0.005          # primary cap used for the headline threshold (validation only)
-  fpr_caps: [0.005, 0.001, 0.0005, 0.0001]   # also report recall at these caps
+  fpr_caps: [0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001]   # also report recall at these caps
+  recall_targets: [0.99, 0.995, 0.999]   # and false positives needed to reach these recalls
 
 models:           # hyperparameters kept modest so full-data runs finish on a laptop
   lr:   {max_iter: 1000}
