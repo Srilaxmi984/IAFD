@@ -1,4 +1,6 @@
-# IAFD: Imbalance-Aware Fraud Detection
+# Explainable AI-Based Fraud Detection Using Ensemble Learning and SHAP
+
+Repository: IAFD (Imbalance-Aware Fraud Detection on PaySim). The model is a soft-voting ensemble (LR, RF, XGBoost, LightGBM) explained with SHAP; the evaluation is chronological and false-positive-capped.
 
 Explainable, imbalance-aware fraud detection on the PaySim mobile-money dataset.
 Base paper: Vijayanand & Smrithy (2025), *Explainable AI-enhanced ensemble learning for financial
@@ -20,7 +22,7 @@ fraud detection in mobile money transactions*, Intelligent Decision Technologies
 - [ ] C: destination-history features (past rows only; sender velocity dropped, see docs)
 - [x] F: hard-negative tuning (scripts/run_hardneg.py): null result
 - [ ] E: structuring attack and defence (scripts/run_structuring.py)
-- [ ] SHAP, Streamlit app, final results
+- [ ] SHAP for the ensemble (scripts/run_shap.py), Streamlit app, final results
 
 ## Setup
 ```bash

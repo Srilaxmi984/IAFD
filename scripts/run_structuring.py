@@ -37,7 +37,8 @@ VARIANTS = [("drain, equal", 0.0, True, None, 0, KS), ("drain, uneven", 0.0, Fal
             ("leave 20%, equal", 0.2, True, None, 0, KS), ("leave 20%, uneven", 0.2, False, None, 0, KS),
             ("STRESS leave 20%, skewed 95%", 0.2, True, 0.95, 0, (2, 4, 8)),
             ("STRESS leave 20%, spread 12 steps", 0.2, True, None, 12, (4, 16)),
-            ("STRESS leave 20%, spread 48 steps", 0.2, True, None, 48, (4, 16)),
+            ("STRESS leave 20%, spread 48 steps", 0.2, True, None, 48, (2, 4, 16)),
+            ("STRESS leave 20%, spread 96 steps", 0.2, True, None, 96, (2, 4, 8)),
             ("STRESS skewed 95% + spread 48", 0.2, True, 0.95, 48, (2, 4))]
 
 
