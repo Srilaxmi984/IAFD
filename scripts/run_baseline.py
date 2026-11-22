@@ -2,6 +2,7 @@
 
     python scripts/run_baseline.py --feature-set paper        # A0: the paper's features
     python scripts/run_baseline.py --feature-set engineered   # A : + balance-error features
+    python scripts/run_baseline.py --feature-set plus         # A+: + full-balance-transfer features
     python scripts/run_baseline.py --feature-set no_dest      # ablation: no receiver-balance features
     python scripts/run_baseline.py --dev                      # quick run on the dev sample
 
@@ -46,7 +47,7 @@ def main():
 
     caps = cfg["constraints"].get("fpr_caps", [cap])
     targets = cfg["constraints"].get("recall_targets", [0.99])
-    exp = {"paper": "A0", "engineered": "A", "no_dest": "A_nodest"}[args.feature_set]
+    exp = {"paper": "A0", "engineered": "A", "no_dest": "A_nodest", "plus": "A_plus"}[args.feature_set]
     val_p, test_p, rows, curve, rcurve = {}, {}, [], [], []
 
     def record(name, pv, pt, secs):

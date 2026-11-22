@@ -3,6 +3,7 @@
 Feature sets
 ------------
 paper       the 5 raw money columns, exactly what the base paper trained on.
+plus        engineered + drains_full_balance + amount_exceeds_balance (from validation error analysis).
 no_dest     engineered minus all receiver-balance features (ablation).
 engineered  money columns + log amount + balance-consistency errors + emptied/zero flags
             + amount-to-balance ratio + one-hot transaction type.
@@ -18,11 +19,14 @@ from .data import MONEY_COLS, TYPES
 TYPE_COLS = [f"type_{t}" for t in TYPES]
 ENGINEERED_EXTRA = ["log_amount", "error_orig", "error_dest", "orig_emptied",
                     "dest_zero_before", "dest_zero_after", "amount_to_balance"]
+PLUS_EXTRA = ["drains_full_balance", "amount_exceeds_balance"]
 FEATURE_SETS = {
     "paper": list(MONEY_COLS),
     "engineered": list(MONEY_COLS) + ENGINEERED_EXTRA + TYPE_COLS,
     # ablation: removes every receiver-balance feature (PaySim leaves the receiver balance
     # unchanged for about half of the fraud, which almost never happens for legit rows)
+    # engineered + the two 'transfer the whole balance' features suggested by validation error analysis
+    "plus": list(MONEY_COLS) + ENGINEERED_EXTRA + TYPE_COLS + PLUS_EXTRA,
     "no_dest": ["amount", "oldbalanceOrg", "newbalanceOrig", "log_amount", "error_orig",
                 "orig_emptied", "amount_to_balance"] + TYPE_COLS,
 }
@@ -37,7 +41,7 @@ def build_features(df: pd.DataFrame, feature_set: str = "engineered") -> pd.Data
     old_d = df["oldbalanceDest"].to_numpy(dtype="float64")
     new_d = df["newbalanceDest"].to_numpy(dtype="float64")
     cols = {c: df[c].to_numpy(dtype="float64") for c in MONEY_COLS}
-    if feature_set in ("engineered", "no_dest"):
+    if feature_set in ("engineered", "no_dest", "plus"):
         cols["log_amount"] = np.log1p(amt)
         cols["error_orig"] = new_o + amt - old_o      # != 0 when sender balance does not add up
         cols["error_dest"] = old_d + amt - new_d      # != 0 when receiver balance does not add up
@@ -45,6 +49,8 @@ def build_features(df: pd.DataFrame, feature_set: str = "engineered") -> pd.Data
         cols["dest_zero_before"] = (old_d == 0).astype("float64")
         cols["dest_zero_after"] = (new_d == 0).astype("float64")
         cols["amount_to_balance"] = amt / (old_o + 1.0)
+        cols["drains_full_balance"] = ((old_o > 0) & (np.abs(amt - old_o) <= 0.01)).astype("float64")
+        cols["amount_exceeds_balance"] = (amt > old_o + 0.01).astype("float64")
         t = df["type"].astype(str).to_numpy()
         for name in TYPES:
             cols[f"type_{name}"] = (t == name).astype("float64")

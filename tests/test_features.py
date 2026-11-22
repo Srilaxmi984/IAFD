@@ -49,3 +49,18 @@ def test_no_dest_has_no_receiver_features(df):
     banned = {"oldbalanceDest", "newbalanceDest", "error_dest", "dest_zero_before", "dest_zero_after"}
     assert banned.isdisjoint(X.columns)
     assert not X.isna().any().any()
+
+
+def test_plus_features_on_the_error_analysis_cases():
+    import pandas as pd
+    base = {"step": 1, "type": "TRANSFER", "orig_id": 1, "dest_id": 2, "oldbalanceDest": 0.0, "newbalanceDest": 0.0}
+    rows = pd.DataFrame([
+        {**base, "amount": 536624.41, "oldbalanceOrg": 536624.41, "newbalanceOrig": 536624.41, "isFraud": 1},   # missed fraud: balance not reduced
+        {**base, "amount": 1000.0, "oldbalanceOrg": 1000.0, "newbalanceOrig": 0.0, "isFraud": 1},               # classic full drain
+        {**base, "amount": 9687193.10, "oldbalanceOrg": 647214.0, "newbalanceOrig": 0.0, "isFraud": 0},         # hard negative: amount >> balance
+        {**base, "amount": 50.0, "oldbalanceOrg": 0.0, "newbalanceOrig": 0.0, "isFraud": 0},                    # zero-balance sender
+    ])
+    X = build_features(rows, "plus")
+    assert list(X.columns) == FEATURE_SETS["plus"]
+    assert X["drains_full_balance"].tolist() == [1.0, 1.0, 0.0, 0.0]
+    assert X["amount_exceeds_balance"].tolist() == [0.0, 0.0, 1.0, 1.0]
