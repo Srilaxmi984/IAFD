@@ -37,3 +37,27 @@ def test_soft_vote_is_mean():
 def test_unknown_model():
     with pytest.raises(ValueError):
         build_model("svm")
+
+
+def test_pos_weight_validation():
+    with pytest.raises(ValueError):
+        build_model("lr", pos_weight=0)
+    with pytest.raises(ValueError):
+        build_model("xgb", pos_weight=-1)
+
+
+@pytest.mark.parametrize("name", ["lr", "xgb"])
+def test_pos_weight_raises_scores(data, name):
+    Xtr, ytr, Xva, yva = data
+    params = {"n_estimators": 30} if name == "xgb" else None
+    p1 = build_model(name, seed=0, params=params).fit(Xtr, ytr).predict_proba(Xva)[:, 1]
+    p50 = build_model(name, seed=0, params=params, pos_weight=50).fit(Xtr, ytr).predict_proba(Xva)[:, 1]
+    assert p50.mean() >= p1.mean() - 1e-9          # penalising missed fraud pushes scores up
+
+
+@pytest.mark.parametrize("name", ALL_MODELS)
+def test_every_model_accepts_pos_weight(data, name):
+    Xtr, ytr, Xva, yva = data
+    params = {"n_estimators": 20} if name in {"rf", "xgb", "lgbm"} else None
+    p = build_model(name, seed=0, params=params, pos_weight=20).fit(Xtr, ytr).predict_proba(Xva)[:, 1]
+    assert p.shape == (len(Xva),)

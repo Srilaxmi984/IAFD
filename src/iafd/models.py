@@ -13,21 +13,26 @@ DEFAULTS = {
 }
 
 
-def build_model(name: str, seed: int = 42, params: dict | None = None):
+def build_model(name: str, seed: int = 42, params: dict | None = None, pos_weight: float = 1.0):
     if name not in DEFAULTS:
         raise ValueError(f"Unknown model {name!r}; choose from {ALL_MODELS}")
+    if pos_weight <= 0:
+        raise ValueError("pos_weight must be > 0")
     p = {**DEFAULTS[name], **(params or {})}
+    cw = {0: 1.0, 1: float(pos_weight)} if pos_weight != 1.0 else None   # cost-sensitive learning (experiment B)
+    if name in ("xgb", "lgbm") and pos_weight != 1.0:
+        p["scale_pos_weight"] = float(pos_weight)
     if name == "lr":
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import make_pipeline
         from sklearn.preprocessing import StandardScaler
-        return make_pipeline(StandardScaler(), LogisticRegression(random_state=seed, **p))
+        return make_pipeline(StandardScaler(), LogisticRegression(random_state=seed, class_weight=cw, **p))
     if name == "dt":
         from sklearn.tree import DecisionTreeClassifier
-        return DecisionTreeClassifier(random_state=seed, **p)
+        return DecisionTreeClassifier(random_state=seed, class_weight=cw, **p)
     if name == "rf":
         from sklearn.ensemble import RandomForestClassifier
-        return RandomForestClassifier(random_state=seed, n_jobs=-1, **p)
+        return RandomForestClassifier(random_state=seed, n_jobs=-1, class_weight=cw, **p)
     if name == "xgb":
         from xgboost import XGBClassifier
         return XGBClassifier(random_state=seed, tree_method="hist", n_jobs=-1, eval_metric="logloss", **p)

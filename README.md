@@ -14,11 +14,12 @@ fraud detection in mobile money transactions*, Intelligent Decision Technologies
 
 ## Status
 - [x] Phase 1: repo, config, chunked data pipeline, chronological split, tests
-- [x] Phase 2a: balance-error features, evaluation under an FPR cap, baseline models (A0, A)
-- [ ] Phase 2b: velocity features (only if the data diagnostic shows they carry signal)
-- [ ] Phase 3: cost-sensitive (B), velocity (C), combined (D), ensemble
-- [ ] Phase 4: validation-only threshold at FPR cap, structuring defense (E)
-- [ ] Phase 5: SHAP, Streamlit app, final results
+- [x] Phase 2: features (paper / engineered / no_dest / plus), FPR-cap and recall-target evaluation, baselines A0, A, A_nodest, A_plus
+- [x] Phase 3-5: error analysis, LightGBM fix, Wilson confidence intervals, seeds, test regime slices
+- [ ] B: cost-sensitive learning (scripts/run_costsensitive.py)
+- [ ] C: destination-history features (past rows only; sender velocity dropped, see docs)
+- [ ] F: hard-negative tuning, E: structuring defense
+- [ ] SHAP, Streamlit app, final results
 
 ## Setup
 ```bash
