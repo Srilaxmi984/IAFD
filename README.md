@@ -16,9 +16,9 @@ fraud detection in mobile money transactions*, Intelligent Decision Technologies
 - [x] Phase 1: repo, config, chunked data pipeline, chronological split, tests
 - [x] Phase 2: features (paper / engineered / no_dest / plus), FPR-cap and recall-target evaluation, baselines A0, A, A_nodest, A_plus
 - [x] Phase 3-5: error analysis, LightGBM fix, Wilson confidence intervals, seeds, test regime slices
-- [ ] B: cost-sensitive learning (scripts/run_costsensitive.py)
+- [x] B: cost-sensitive learning (scripts/run_costsensitive.py): small or null effect
 - [ ] C: destination-history features (past rows only; sender velocity dropped, see docs)
-- [ ] F: hard-negative tuning, E: structuring defense
+- [ ] F: hard-negative tuning (scripts/run_hardneg.py), E: structuring defense
 - [ ] SHAP, Streamlit app, final results
 
 ## Setup

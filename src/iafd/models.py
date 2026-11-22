@@ -5,7 +5,7 @@ import numpy as np
 ALL_MODELS = ["lr", "dt", "rf", "xgb", "lgbm"]
 
 DEFAULTS = {
-    "lr": {"max_iter": 1000},
+    "lr": {"max_iter": 2000, "tol": 1e-8},   # tight tol: the default stopped after ~12 iterations on 3M rows
     "dt": {"max_depth": 12, "min_samples_leaf": 5},
     "rf": {"n_estimators": 100, "max_depth": 16, "min_samples_leaf": 5},
     "xgb": {"n_estimators": 300, "max_depth": 6, "learning_rate": 0.1},
