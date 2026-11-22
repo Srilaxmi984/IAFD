@@ -78,3 +78,32 @@ def test_event_max_and_validation(frauds):
         split_frauds(frauds, np.random.default_rng(0), [2], residual=1.0)
     with pytest.raises(ValueError):
         split_frauds(frauds.iloc[0:0], np.random.default_rng(0), [2])
+
+
+def test_skew_puts_most_of_the_amount_in_the_last_piece(frauds):
+    p = split_frauds(frauds, np.random.default_rng(0), [4], residual=0.2, equal=True, skew=0.95)
+    for ev, g in p.groupby("event_id"):
+        share = g["amount"].iloc[-1] / g["amount"].sum()
+        assert share == pytest.approx(0.95, abs=0.01)
+        assert g["amount"].iloc[:-1].max() < g["amount"].iloc[-1] / 10
+    with pytest.raises(ValueError):
+        split_frauds(frauds, np.random.default_rng(0), [2], skew=1.0)
+
+
+def test_spread_spaces_pieces_over_steps_without_changing_amounts(frauds):
+    base = split_frauds(frauds, np.random.default_rng(0), [4], 0.2, True)
+    sp = split_frauds(frauds, np.random.default_rng(0), [4], 0.2, True, spread=48)
+    assert (sp["amount"].to_numpy() == base["amount"].to_numpy()).all()
+    for ev, g in sp.groupby("event_id"):
+        f = frauds.iloc[ev]
+        assert g["step"].iloc[0] == f["step"] and g["step"].iloc[-1] == f["step"] + 48
+        assert g["step"].is_monotonic_increasing
+    assert (split_frauds(frauds, np.random.default_rng(0), [4], 0.2, True)["step"].to_numpy()
+            == np.repeat(frauds["step"].to_numpy(), 4)).all()
+
+
+def test_velocity_window_is_blind_to_pieces_spread_beyond_it(frauds):
+    X = build_features(split_frauds(frauds, np.random.default_rng(0), [2], 0.2, True, spread=48), "velocity")
+    assert (X["orig_prev_count"] == 0).all()                     # two pieces 48 steps apart: outside the 24-step window
+    X = build_features(split_frauds(frauds, np.random.default_rng(0), [2], 0.2, True, spread=12), "velocity")
+    assert X["orig_prev_count"].max() == 1

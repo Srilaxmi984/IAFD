@@ -15,9 +15,12 @@ PIECE_COLS = ["step", "type", "orig_id", "dest_id", "amount", "oldbalanceOrg", "
 
 
 def split_frauds(frauds: pd.DataFrame, rng: np.random.Generator, k_choices, residual: float = 0.0,
-                 equal: bool = True) -> pd.DataFrame:
+                 equal: bool = True, skew: float | None = None, spread: int = 0) -> pd.DataFrame:
     """Replace each fraud row by k pieces (k drawn from k_choices). Returns piece rows with an `event_id`
-    (position of the original fraud). equal=False draws random (Dirichlet) piece sizes."""
+    (position of the original fraud). equal=False draws random (Dirichlet) piece sizes.
+    skew (0..1): the LAST piece carries this share of the total and the earlier pieces split the rest equally
+    (tiny pieces first, the adversarial order against velocity features); overrides `equal`.
+    spread: the pieces are spaced evenly over this many steps (0 = all in the original step)."""
     n = len(frauds)
     if n == 0:
         raise ValueError("no fraud rows to split")
@@ -37,7 +40,12 @@ def split_frauds(frauds: pd.DataFrame, rng: np.random.Generator, k_choices, resi
     amt_c, old_o_c, old_d_c, new_d_c = cents("amount"), cents("oldbalanceOrg"), cents("oldbalanceDest"), cents("newbalanceDest")
     total_c = np.round(amt_c * (1.0 - residual)).astype(np.int64)
 
-    if equal:
+    if skew is not None:
+        if not 0 < skew < 1:
+            raise ValueError("skew must be in (0, 1)")
+        w = np.repeat((1.0 - skew) / np.maximum(k - 1, 1), k)
+        w[last] = np.where(k > 1, skew, 1.0)
+    elif equal:
         w = 1.0 / np.repeat(k, k)
     else:
         raw = rng.gamma(1.0, size=total_pieces)
@@ -57,8 +65,10 @@ def split_frauds(frauds: pd.DataFrame, rng: np.random.Generator, k_choices, resi
     new_d = old_d + np.where(upd, ac, 0)
 
     rep = lambda col: np.repeat(frauds[col].to_numpy(), k)
+    j = np.arange(total_pieces) - np.repeat(starts, k)                       # index of the piece within its event
+    step_shift = np.round(j * spread / np.repeat(np.maximum(k - 1, 1), k)).astype(np.int64)
     return pd.DataFrame({
-        "step": rep("step"), "type": np.repeat(frauds["type"].astype(str).to_numpy(), k),
+        "step": rep("step").astype(np.int64) + step_shift, "type": np.repeat(frauds["type"].astype(str).to_numpy(), k),
         "orig_id": rep("orig_id"), "dest_id": rep("dest_id"),
         "amount": ac / 100.0, "oldbalanceOrg": old_o / 100.0, "newbalanceOrig": new_o / 100.0,
         "oldbalanceDest": old_d / 100.0, "newbalanceDest": new_d / 100.0,

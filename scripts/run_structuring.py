@@ -6,6 +6,8 @@ pieces, k = 2..32.
 DEFENCE: retrain with extra fraud-labelled pieces made from TRAIN frauds, using a DIFFERENT recipe
 (equal pieces, k in {2,3,5,8}, residual 0 or 10%). The test attacks use uneven pieces, residual 20%, and k up to 32,
 so a defence that only memorised its own recipe does not look better than it is.
+STRESS rows add attacks the defence cannot have seen: a tiny first piece with a 95% last piece, and pieces spread
+over 12 or 48 steps (the velocity window is 24 steps, so 48 is expected to evade it).
 Thresholds always come from CLEAN validation at the headline FPR cap; the cost of the defence shows up as
 false positives and recall on clean test.
 
@@ -29,9 +31,14 @@ from iafd.models import ALL_MODELS, build_model
 from iafd.structuring import split_frauds, event_max
 from iafd.evaluate import threshold_at_fpr, confusion_at_threshold
 
-VARIANTS = [("drain, equal", 0.0, True), ("drain, uneven", 0.0, False),
-            ("leave 20%, equal", 0.2, True), ("leave 20%, uneven", 0.2, False)]
 KS = (2, 4, 8, 16, 32)
+# (name, residual, equal, skew, spread, ks). The last block are STRESS TESTS the defence was never trained on.
+VARIANTS = [("drain, equal", 0.0, True, None, 0, KS), ("drain, uneven", 0.0, False, None, 0, KS),
+            ("leave 20%, equal", 0.2, True, None, 0, KS), ("leave 20%, uneven", 0.2, False, None, 0, KS),
+            ("STRESS leave 20%, skewed 95%", 0.2, True, 0.95, 0, (2, 4, 8)),
+            ("STRESS leave 20%, spread 12 steps", 0.2, True, None, 12, (4, 16)),
+            ("STRESS leave 20%, spread 48 steps", 0.2, True, None, 48, (4, 16)),
+            ("STRESS skewed 95% + spread 48", 0.2, True, 0.95, 48, (2, 4))]
 
 
 def main():
@@ -79,11 +86,11 @@ def main():
 
         rows = [{"model": name, "attack": "none (clean test)", "k": 1,
                  "undefended": fitted["undefended"][2]["recall"], "defended": fitted["defended"][2]["recall"]}]
-        for vi, (vname, resid, equal) in enumerate(VARIANTS):
-            for k in KS:
+        for vi, (vname, resid, equal, skew, spread, ks) in enumerate(VARIANTS):
+            for k in ks:
                 rec = {}
                 for label, (m, thr, _) in fitted.items():
-                    pieces = split_frauds(te_f, np.random.default_rng(1000 + 10 * vi + k), [k], resid, equal)
+                    pieces = split_frauds(te_f, np.random.default_rng(1000 + 10 * vi + k), [k], resid, equal, skew, spread)
                     sc = m.predict_proba(build_features(pieces, fs))[:, 1]
                     rec[label] = float(np.mean(event_max(sc, pieces["event_id"].to_numpy()) > thr))
                 rows.append({"model": name, "attack": vname, "k": k, **rec})
