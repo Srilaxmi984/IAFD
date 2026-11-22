@@ -41,3 +41,11 @@ def test_one_hot_rows_sum_to_one(df):
 def test_unknown_feature_set(df):
     with pytest.raises(ValueError):
         build_features(df, "nope")
+
+
+def test_no_dest_has_no_receiver_features(df):
+    X = build_features(df, "no_dest")
+    assert list(X.columns) == FEATURE_SETS["no_dest"]
+    banned = {"oldbalanceDest", "newbalanceDest", "error_dest", "dest_zero_before", "dest_zero_after"}
+    assert banned.isdisjoint(X.columns)
+    assert not X.isna().any().any()

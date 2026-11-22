@@ -3,6 +3,7 @@
 Feature sets
 ------------
 paper       the 5 raw money columns, exactly what the base paper trained on.
+no_dest     engineered minus all receiver-balance features (ablation).
 engineered  money columns + log amount + balance-consistency errors + emptied/zero flags
             + amount-to-balance ratio + one-hot transaction type.
 
@@ -20,6 +21,10 @@ ENGINEERED_EXTRA = ["log_amount", "error_orig", "error_dest", "orig_emptied",
 FEATURE_SETS = {
     "paper": list(MONEY_COLS),
     "engineered": list(MONEY_COLS) + ENGINEERED_EXTRA + TYPE_COLS,
+    # ablation: removes every receiver-balance feature (PaySim leaves the receiver balance
+    # unchanged for about half of the fraud, which almost never happens for legit rows)
+    "no_dest": ["amount", "oldbalanceOrg", "newbalanceOrig", "log_amount", "error_orig",
+                "orig_emptied", "amount_to_balance"] + TYPE_COLS,
 }
 
 
@@ -32,7 +37,7 @@ def build_features(df: pd.DataFrame, feature_set: str = "engineered") -> pd.Data
     old_d = df["oldbalanceDest"].to_numpy(dtype="float64")
     new_d = df["newbalanceDest"].to_numpy(dtype="float64")
     cols = {c: df[c].to_numpy(dtype="float64") for c in MONEY_COLS}
-    if feature_set == "engineered":
+    if feature_set in ("engineered", "no_dest"):
         cols["log_amount"] = np.log1p(amt)
         cols["error_orig"] = new_o + amt - old_o      # != 0 when sender balance does not add up
         cols["error_dest"] = old_d + amt - new_d      # != 0 when receiver balance does not add up

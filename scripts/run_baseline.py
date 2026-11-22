@@ -2,6 +2,7 @@
 
     python scripts/run_baseline.py --feature-set paper        # A0: the paper's features
     python scripts/run_baseline.py --feature-set engineered   # A : + balance-error features
+    python scripts/run_baseline.py --feature-set no_dest      # ablation: no receiver-balance features
     python scripts/run_baseline.py --dev                      # quick run on the dev sample
 
 Threshold per model is chosen on VALIDATION (FPR <= cap); test is evaluated once.
@@ -17,7 +18,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from iafd.config import load_config, resolve
 from iafd.data import load_dataset, chronological_split, check_split
-from iafd.features import build_features
+from iafd.features import build_features, FEATURE_SETS
 from iafd.models import ALL_MODELS, build_model, soft_vote
 from iafd.evaluate import threshold_at_fpr, evaluate_scores, recall_fpr_table, fp_at_recall_table
 
@@ -25,7 +26,7 @@ from iafd.evaluate import threshold_at_fpr, evaluate_scores, recall_fpr_table, f
 def main():
     cfg = load_config()
     ap = argparse.ArgumentParser()
-    ap.add_argument("--feature-set", default="engineered", choices=["paper", "engineered"])
+    ap.add_argument("--feature-set", default="engineered", choices=list(FEATURE_SETS))
     ap.add_argument("--models", nargs="+", default=ALL_MODELS, choices=ALL_MODELS)
     ap.add_argument("--dev", action="store_true", help="use the small dev sample (metrics NOT reportable)")
     args = ap.parse_args()
@@ -45,14 +46,14 @@ def main():
 
     caps = cfg["constraints"].get("fpr_caps", [cap])
     targets = cfg["constraints"].get("recall_targets", [0.99])
-    exp = "A0" if args.feature_set == "paper" else "A"
+    exp = {"paper": "A0", "engineered": "A", "no_dest": "A_nodest"}[args.feature_set]
     val_p, test_p, rows, curve, rcurve = {}, {}, [], [], []
 
     def record(name, pv, pt, secs):
         thr = threshold_at_fpr(yva, pv, cap)
         v = evaluate_scores(yva, pv, thr, ref_prev)
         t = evaluate_scores(yte, pt, thr, ref_prev)
-        rows.append({"experiment": "A0" if args.feature_set == "paper" else "A", "features": args.feature_set,
+        rows.append({"experiment": exp, "features": args.feature_set,
                      "model": name, "threshold": thr, "fit_seconds": round(secs, 1),
                      "val_recall": v["recall"], "val_fpr": v["fpr"],
                      "test_recall": t["recall"], "test_fpr": t["fpr"], "test_precision": t["precision"],
@@ -77,7 +78,7 @@ def main():
 
     out_dir = resolve(cfg["paths"]["reports_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
-    tag = ("dev_" if args.dev else "") + ("A0_paper" if args.feature_set == "paper" else "A_engineered")
+    tag = ("dev_" if args.dev else "") + f"{exp}_{args.feature_set}"
     pd.DataFrame(rows).to_csv(out_dir / f"experiment_{tag}.csv", index=False)
     cdf = pd.DataFrame(curve)
     cdf.to_csv(out_dir / f"experiment_{tag}_curve.csv", index=False)

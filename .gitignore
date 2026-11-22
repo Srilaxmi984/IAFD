@@ -17,3 +17,6 @@ venv/
 *.parquet
 *.csv
 !reports/*.csv
+
+# dev-sample results are not reportable
+reports/experiment_dev_*
