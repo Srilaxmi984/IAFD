@@ -1,0 +1,2 @@
+experiment,model,seed,cap,threshold,test_recall,recall_ci_lo,recall_ci_hi,test_fp,test_fpr,fpr_ci_lo,fpr_ci_hi,flags_nothing,val_legit_ties_at_threshold,early_recall,early_fp,early_fraud,late_recall,late_fp,late_fraud
+A_nodest,lr,42,0.0001,0.014518200224397045,0.992,0.988841948331153,0.9942694115276625,139,0.00011169269883309254,9.460449537025079e-05,0.00013186710012115592,False,1,0.9943679599499374,100,1598,0.9905731523378583,39,2652
