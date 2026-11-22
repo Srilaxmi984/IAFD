@@ -4,6 +4,11 @@ import numpy as np
 
 ALL_MODELS = ["lr", "dt", "rf", "xgb", "lgbm"]
 
+
+def _signed_log1p(x):
+    """sign(x) * log1p(|x|): tames the heavy-tailed money columns (up to ~1e7) so the LR sigmoid does not saturate."""
+    return np.sign(x) * np.log1p(np.abs(x))
+
 DEFAULTS = {
     "lr": {"max_iter": 2000, "tol": 1e-8},   # tight tol: the default stopped after ~12 iterations on 3M rows
     "dt": {"max_depth": 12, "min_samples_leaf": 5},
@@ -25,8 +30,10 @@ def build_model(name: str, seed: int = 42, params: dict | None = None, pos_weigh
     if name == "lr":
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import StandardScaler
-        return make_pipeline(StandardScaler(), LogisticRegression(random_state=seed, class_weight=cw, **p))
+        from sklearn.preprocessing import FunctionTransformer, StandardScaler
+        # LR only: signed log, then standardise (the paper standardises only). Trees are scale-free and use raw values.
+        return make_pipeline(FunctionTransformer(_signed_log1p), StandardScaler(),
+                             LogisticRegression(random_state=seed, class_weight=cw, **p))
     if name == "dt":
         from sklearn.tree import DecisionTreeClassifier
         return DecisionTreeClassifier(random_state=seed, class_weight=cw, **p)

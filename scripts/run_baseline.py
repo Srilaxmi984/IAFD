@@ -80,12 +80,15 @@ def main():
         row = {"experiment": exp, "model": name, "seed": seed, "cap": cap, "threshold": thr,
                "test_recall": t["recall"], "recall_ci_lo": r_lo, "recall_ci_hi": r_hi,
                "test_fp": t["fp"], "test_fpr": t["fpr"], "fpr_ci_lo": f_lo, "fpr_ci_hi": f_hi,
-               "flags_nothing": (t["tp"] + t["fp"]) == 0}
+               "flags_nothing": (t["tp"] + t["fp"]) == 0,
+               "val_legit_ties_at_threshold": int(np.sum((yva == 0) & (pv == thr))) if np.isfinite(thr) else 0}
         for sl, m in slices.items():
             c = confusion_at_threshold(yte[m], pt[m], thr)
             row.update({f"{sl}_recall": c["recall"], f"{sl}_fp": c["fp"], f"{sl}_fraud": c["tp"] + c["fn"]})
         primary.append(row)
         note = "  <-- flags nothing (tied scores)" if row["flags_nothing"] else ""
+        if row["val_legit_ties_at_threshold"] >= 20:
+            note += f"  [{row['val_legit_ties_at_threshold']} legit val rows tie exactly at the threshold: scores too coarse or saturated]"
         print(f"  seed {seed} {name:9s} val recall={v['recall']:.4f} (fpr {v['fpr']:.5f}) | "
               f"test recall={t['recall']:.4f} fp={t['fp']:>5d} fpr={t['fpr']:.5f} PR-AUC={t['pr_auc']:.3f}{note}")
 

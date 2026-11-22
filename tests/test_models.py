@@ -61,3 +61,15 @@ def test_every_model_accepts_pos_weight(data, name):
     params = {"n_estimators": 20} if name in {"rf", "xgb", "lgbm"} else None
     p = build_model(name, seed=0, params=params, pos_weight=20).fit(Xtr, ytr).predict_proba(Xva)[:, 1]
     assert p.shape == (len(Xva),)
+
+
+def test_lr_does_not_saturate_on_heavy_tailed_features():
+    import pandas as pd
+    rng = np.random.default_rng(3)
+    n = 4_000
+    amt = np.exp(rng.normal(10, 2.5, n))                       # up to ~1e9
+    X = pd.DataFrame({"amount": amt, "flag": (rng.random(n) < 0.3).astype(float)})
+    y = ((np.log1p(amt) > 14) & (X["flag"] == 1)).astype(int).to_numpy()
+    p = build_model("lr", seed=0).fit(X, y).predict_proba(X)[:, 1]
+    assert len(np.unique(p)) > 500                              # not collapsed onto exactly 0.0 / 1.0
+    assert np.mean(p >= 1 - 1e-12) < 0.05
