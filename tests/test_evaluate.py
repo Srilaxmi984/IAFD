@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from iafd.evaluate import (threshold_at_recall, fp_at_recall_table, recall_fpr_table, threshold_at_fpr, confusion_at_threshold, evaluate_scores,
+from iafd.evaluate import (wilson_interval, threshold_at_recall, fp_at_recall_table, recall_fpr_table, threshold_at_fpr, confusion_at_threshold, evaluate_scores,
                            precision_at_prevalence)
 
 
@@ -80,3 +80,13 @@ def test_fp_at_recall_table_fp_grows_with_target():
     assert all(r["val_recall"] >= r["recall_target"] for r in rows)
     fps = [r["test_fp"] for r in rows]
     assert fps == sorted(fps)
+
+
+def test_wilson_interval():
+    lo, hi = wilson_interval(50, 100)
+    assert lo < 0.5 < hi and 0.39 < lo < 0.41 and 0.59 < hi < 0.61
+    lo, hi = wilson_interval(4248, 4250)
+    assert 0.998 < lo < 0.9995 and hi <= 1.0
+    assert wilson_interval(0, 0) == (0.0, 0.0)
+    lo0, hi0 = wilson_interval(0, 1000)
+    assert lo0 == 0.0 and 0 < hi0 < 0.005

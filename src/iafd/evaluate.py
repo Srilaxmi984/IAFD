@@ -93,3 +93,15 @@ def fp_at_recall_table(y_val, p_val, y_test, p_test, targets) -> list[dict]:
                      "val_recall": v["recall"], "val_fpr": v["fpr"],
                      "test_recall": t["recall"], "test_fpr": t["fpr"], "test_fp": t["fp"], "test_fn": t["fn"]})
     return rows
+
+
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval for a proportion k/n at a FIXED threshold.
+    It ignores threshold-selection and model-training variability (use several seeds for that)."""
+    if n <= 0:
+        return 0.0, 0.0
+    p = k / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return float(max(0.0, centre - half)), float(min(1.0, centre + half))
