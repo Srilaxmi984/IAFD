@@ -18,7 +18,8 @@ fraud detection in mobile money transactions*, Intelligent Decision Technologies
 - [x] Phase 3-5: error analysis, LightGBM fix, Wilson confidence intervals, seeds, test regime slices
 - [x] B: cost-sensitive learning (scripts/run_costsensitive.py): small or null effect
 - [ ] C: destination-history features (past rows only; sender velocity dropped, see docs)
-- [ ] F: hard-negative tuning (scripts/run_hardneg.py), E: structuring defense
+- [x] F: hard-negative tuning (scripts/run_hardneg.py): null result
+- [ ] E: structuring attack and defence (scripts/run_structuring.py)
 - [ ] SHAP, Streamlit app, final results
 
 ## Setup
