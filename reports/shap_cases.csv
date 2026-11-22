@@ -1,0 +1,4 @@
+case,test_row,score,flagged,isFraud,amount,oldbalanceOrg,newbalanceOrig,oldbalanceDest,newbalanceDest,log_amount,error_orig,error_dest,orig_emptied,dest_zero_before,dest_zero_after,amount_to_balance,type_CASH_IN,type_CASH_OUT,type_DEBIT,type_PAYMENT,type_TRANSFER,drains_full_balance,amount_exceeds_balance
+missed_fraud,1167600,0.008583165329422094,False,1,399045.08,10399045.08,10399045.08,0.0,0.0,12.896832177925496,399045.0800000001,399045.08,0.0,1.0,1.0,0.03837323894231653,0.0,0.0,0.0,0.0,1.0,0.0,0.0
+false_positive,102708,0.1636519737924851,True,0,94284.23,0.0,0.0,473945.41,568229.63,11.454079828570467,94284.23,0.010000000009313226,0.0,0.0,0.0,94284.23,0.0,1.0,0.0,0.0,0.0,0.0,1.0
+caught_fraud,986325,0.9999869344913899,True,1,101408.84,101408.84,0.0,0.0,0.0,11.526925406851124,0.0,101408.84,1.0,1.0,1.0,0.9999901390239843,0.0,0.0,0.0,0.0,1.0,1.0,0.0
