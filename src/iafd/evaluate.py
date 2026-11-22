@@ -9,7 +9,8 @@ precision and PR-AUC are not comparable across splits. Recall and FPR are.
 `precision_at_prevalence` re-computes precision for a chosen prevalence."""
 from __future__ import annotations
 import numpy as np
-from sklearn.metrics import average_precision_score, f1_score, precision_recall_curve, roc_auc_score
+from sklearn.metrics import (average_precision_score, f1_score, matthews_corrcoef,
+                             precision_recall_curve, roc_auc_score)
 
 
 def threshold_at_fpr(y_true: np.ndarray, scores: np.ndarray, fpr_cap: float) -> float:
