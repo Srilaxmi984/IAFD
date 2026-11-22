@@ -1,2 +1,2 @@
-experiment,model,seed,cap,threshold,test_recall,recall_ci_lo,recall_ci_hi,test_fp,test_fpr,fpr_ci_lo,fpr_ci_hi,flags_nothing,early_recall,early_fp,early_fraud,late_recall,late_fp,late_fraud
-A_plus,lr,42,0.0001,0.9997833497745173,0.9924705882352941,0.9893902534110905,0.994661432951655,0,0.0,0.0,3.086887390788968e-06,False,0.9931163954943679,0,1598,0.9920814479638009,0,2652
+experiment,model,seed,cap,threshold,test_recall,recall_ci_lo,recall_ci_hi,test_fp,test_fpr,fpr_ci_lo,fpr_ci_hi,flags_nothing,val_legit_ties_at_threshold,early_recall,early_fp,early_fraud,late_recall,late_fp,late_fraud
+A_plus,lr,42,0.0001,0.0020429040327847206,0.9983529411764706,0.996603829035215,0.9992019386266555,34,2.7320516261331986e-05,1.955178610366874e-05,3.817596513906989e-05,False,1,0.9987484355444305,31,1598,0.9981146304675717,3,2652
