@@ -27,7 +27,7 @@ from iafd.models import ALL_MODELS, build_model, soft_vote
 from iafd.evaluate import (threshold_at_fpr, evaluate_scores, confusion_at_threshold,
                            recall_fpr_table, fp_at_recall_table, wilson_interval)
 
-EXP = {"paper": "A0", "engineered": "A", "no_dest": "A_nodest", "plus": "A_plus"}
+EXP = {"paper": "A0", "engineered": "A", "no_dest": "A_nodest", "plus": "A_plus", "velocity": "C_velocity"}
 
 
 def main():
