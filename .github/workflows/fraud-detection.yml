@@ -1,0 +1,149 @@
+name: Fraud Detection Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  train-and-evaluate:
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check for dataset
+        id: data_check
+        run: |
+          if (Test-Path "data/processed/paysim.parquet") {
+            echo "full_data=true" >> $env:GITHUB_OUTPUT
+            echo "Full dataset found"
+          } else {
+            echo "full_data=false" >> $env:GITHUB_OUTPUT
+            echo "Full dataset not found - will use dev sample"
+          }
+
+      - name: Prepare data (use dev sample if no full data)
+        run: |
+          if ($env:full_data -eq "true") {
+            python scripts/prepare_data.py
+          } else {
+            echo "Using existing dev sample for CI"
+            # Ensure dev sample exists
+            if (-not (Test-Path "data/processed/paysim_dev.parquet")) {
+              python scripts/prepare_data.py --csv "dummy.csv" 2>$null || echo "Dev sample should exist from repo"
+            }
+          }
+
+      - name: Train Approach A (Advanced Ensemble)
+        id: train_a
+        run: |
+          if ($env:full_data -eq "true") {
+            python scripts/run_approach_a.py --architecture stacking
+          } else {
+            python scripts/run_approach_a.py --architecture stacking --dev
+          }
+        continue-on-error: false
+
+      - name: Train Approach B (Imbalance-Aware)
+        id: train_b
+        run: |
+          if ($env:full_data -eq "true") {
+            python scripts/run_approach_b.py --model balanced_rf
+          } else {
+            python scripts/run_approach_b.py --model balanced_rf --dev
+          }
+        continue-on-error: false
+
+      - name: Compare Approaches
+        id: compare
+        run: |
+          if ($env:full_data -eq "true") {
+            python scripts/run_comparison.py
+          } else {
+            python scripts/run_comparison.py --dev
+          }
+        continue-on-error: false
+
+      - name: Robustness Testing
+        id: robustness
+        run: |
+          if ($env:full_data -eq "true") {
+            python scripts/run_robustness.py
+          } else {
+            python scripts/run_robustness.py --dev
+          }
+        continue-on-error: false
+
+      - name: SHAP Explanations
+        id: shap
+        run: |
+          if ($env:full_data -eq "true") {
+            python scripts/run_shap_both.py
+          } else {
+            python scripts/run_shap_both.py --dev
+          }
+        continue-on-error: false
+
+      - name: Run Tests
+        id: tests
+        run: |
+          python -m pytest tests/ -v
+        continue-on-error: false
+
+      - name: Upload models
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-models
+          path: models/
+          retention-days: 30
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-reports
+          path: reports/
+          retention-days: 30
+
+      - name: Upload SHAP figures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shap-figures
+          path: reports/figures/shap/
+          retention-days: 30
+
+  quick-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Run unit tests
+        run: python -m pytest tests/test_data.py -v
+      - name: Syntax check
+        run: python -m py_compile $(find src -name "*.py")
