@@ -14,6 +14,40 @@ fraud detection in mobile money transactions*, Intelligent Decision Technologies
 | Threshold implicitly 0.5 | Threshold chosen on validation only, under an FPR cap |
 | Global SHAP on 5 raw columns | Local + global SHAP on engineered features |
 
+## Final models
+The project ends in two models, both chosen on **validation only** and then evaluated once on the chronological test set:
+
+| | Final Ensemble | Final Single Model |
+|---|---|---|
+| Goal | fewest missed frauds and false alarms from a combination of models | one model that stays accurate as the class imbalance gets more extreme |
+| How it is chosen | every combination of 2+ candidates and two averaging rules is scored on validation | every candidate is trained at the natural imbalance and with only 10% and 3% of the training frauds, with and without a class weight; best mean validation LFR wins |
+
+**Selection metric (LFR):** mean recall over false-positive-rate caps of 0.001%, 0.005%, 0.01%, 0.05% and 0.1%.
+**Reported metrics:** missed frauds (FN), false alarms (FP), recall, FPR, MCC, F2, PR-AUC, LFR, and a cost view
+(value of missed fraud plus a cost per false alert), at three operating points (FPR <= 0.01%, recall >= 99.5%, minimum cost),
+with seed spread, 95% intervals and early/late test regimes. Both are compared with the paper's setup
+(5 raw features, LR+DT+RF+XGBoost+LightGBM soft vote) under the same protocol.
+
+```bash
+python scripts/final_select.py      # validation only: picks the two final models
+python scripts/final_evaluate.py    # test, once: results in reports/FINAL_RESULTS.md and reports/figures/
+```
+
+## Architecture
+```mermaid
+flowchart LR
+  A[PaySim CSV, 6.36M rows] --> B[prepare_data: chunked parquet, hashed ids]
+  B --> C[Chronological split: train 1-240, validation 241-355, test 356+]
+  C --> D[Features: balance errors, full-balance flags, type]
+  D --> E1[Single-model track]
+  D --> E2[Ensemble track]
+  E1 --> F[Selection on validation only: low-FPR recall across imbalance levels]
+  E2 --> F
+  F --> G[Thresholds from validation: FPR cap, recall target, minimum cost]
+  G --> H[One-shot test evaluation: seeds, intervals, regimes, cost]
+  H --> I[SHAP explanations and Streamlit app]
+```
+
 ## Status
 - [x] Phase 1: repo, config, chunked data pipeline, chronological split, tests
 - [x] Phase 2: features (paper / engineered / no_dest / plus), FPR-cap and recall-target evaluation, baselines A0, A, A_nodest, A_plus
@@ -22,7 +56,8 @@ fraud detection in mobile money transactions*, Intelligent Decision Technologies
 - [ ] C: destination-history features (past rows only; sender velocity dropped, see docs)
 - [x] F: hard-negative tuning (scripts/run_hardneg.py): null result
 - [ ] E: structuring attack and defence (scripts/run_structuring.py)
-- [ ] SHAP for the ensemble (scripts/run_shap.py), Streamlit app, final results
+- [x] SHAP for the ensemble (scripts/run_shap.py)
+- [ ] Final models (scripts/final_select.py, scripts/final_evaluate.py), Streamlit app, final README results
 
 ## Setup
 ```bash
