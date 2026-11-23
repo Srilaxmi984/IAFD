@@ -472,8 +472,8 @@ class TestEvaluation:
 
         # FPR cap = 0.5 means we can have 2 FPs out of 4 negatives
         thr = threshold_at_fpr(y_true, scores, 0.5)
-        # Negatives scores: [0.1, 0.2, 0.3, 0.4], k=2, threshold = 0.3 (3rd highest)
-        assert thr == 0.3
+        # Negatives [0.1, 0.2, 0.3, 0.4], k=2; flagging is score > thr, so thr = 3rd highest = 0.2
+        assert thr == 0.2
 
     def test_confusion_at_threshold(self):
         """Test confusion matrix computation."""
