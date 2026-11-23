@@ -1,0 +1,30 @@
+{
+  "feature_set": "plus",
+  "selection_seed": 42,
+  "caps": [
+    1e-05,
+    5e-05,
+    0.0001,
+    0.0005,
+    0.001
+  ],
+  "levels": [
+    1.0,
+    0.1,
+    0.03
+  ],
+  "single": {
+    "model": "rf",
+    "strategy": "sqrtw",
+    "mean_lfr": 1.0,
+    "min_lfr": 1.0
+  },
+  "ensemble": {
+    "members": [
+      "lr",
+      "rf"
+    ],
+    "aggregator": "mean",
+    "val_lfr": 0.9995176848874598
+  }
+}
