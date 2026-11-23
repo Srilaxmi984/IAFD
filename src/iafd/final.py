@@ -102,3 +102,71 @@ def combine(prob_list, mode: str = "mean") -> np.ndarray:
 def all_subsets(names, min_size: int = 2):
     for r in range(min_size, len(names) + 1):
         yield from itertools.combinations(names, r)
+
+
+# ---------------------------------------------------------------- selection without accidental ties
+def selection_profile(y: np.ndarray, p: np.ndarray, caps=LOW_FPR_CAPS, recalls=(0.995, 0.999)):
+    """(LFR, false positives needed for recall >= 0.995, ... >= 0.999), all on the given (validation) data.
+    One sort of each class, so it is cheap enough to score hundreds of ensemble candidates."""
+    neg, pos = np.sort(p[y == 0]), np.sort(p[y == 1])
+    nn, npos = len(neg), len(pos)
+    if nn == 0 or npos == 0:
+        raise ValueError("need both classes")
+    recs = []
+    for c in caps:
+        k = int(np.floor(c * nn))
+        thr = neg[nn - 1 - k] if k < nn else -np.inf          # the (k+1)-th highest legit score
+        recs.append((npos - np.searchsorted(pos, thr, side="right")) / npos)
+    fps = []
+    for r in recalls:
+        m = int(np.floor((1 - r) * npos))
+        thr = np.nextafter(pos[m], -np.inf) if m < npos else np.inf
+        fps.append(int(nn - np.searchsorted(neg, thr, side="right")))
+    return float(np.mean(recs)), fps[0], fps[1]
+
+
+def positive_simplex(k: int, units: int = 10):
+    """All weight vectors with k STRICTLY positive entries, multiples of 1/units, summing to 1."""
+    out = []
+
+    def rec(prefix, remaining, slots):
+        if slots == 1:
+            if remaining >= 1:
+                out.append(prefix + [remaining])
+            return
+        for v in range(1, remaining - slots + 2):
+            rec(prefix + [v], remaining - v, slots - 1)
+    rec([], units, k)
+    return [tuple(v / units for v in w) for w in out]
+
+
+def weighted_logit(prob_list, weights) -> np.ndarray:
+    w = np.asarray(weights, dtype="float64")
+    w = w / w.sum()
+    z = sum(wi * logit(p) for wi, p in zip(w, prob_list))
+    return 1.0 / (1.0 + np.exp(-z))
+
+
+def combine_spec(prob_list, aggregator: str, weights=None) -> np.ndarray:
+    if aggregator == "weighted_logit":
+        return weighted_logit(prob_list, weights)
+    return combine(prob_list, aggregator)
+
+
+# ---------------------------------------------------------------- type gating
+def allowed_types(types, y) -> list[str]:
+    """Transaction types that contain at least one fraud in the TRAINING data."""
+    return sorted(set(np.asarray(types).astype(str)[np.asarray(y) == 1]))
+
+
+def allowed_mask(types, allowed) -> np.ndarray:
+    return np.isin(np.asarray(types).astype(str), list(allowed))
+
+
+def predict_gated(model, X, mask: np.ndarray) -> np.ndarray:
+    """Fraud probability for rows of an allowed type; exactly 0 for the others (they can never be flagged but
+    still count in every false-positive-rate denominator)."""
+    out = np.zeros(len(X), dtype="float64")
+    if mask.any():
+        out[mask] = model.predict_proba(X[mask])[:, 1]
+    return out

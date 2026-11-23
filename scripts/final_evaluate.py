@@ -35,7 +35,8 @@ from iafd.data import load_dataset, chronological_split, check_split
 from iafd.features import build_features
 from iafd.models import build_model
 from iafd.evaluate import (threshold_at_fpr, threshold_at_recall, confusion_at_threshold, recall_fpr_table, wilson_interval)
-from iafd.final import (mcc, f_beta, cost_at_threshold, threshold_min_cost, combine, strategy_pos_weight, LOW_FPR_CAPS)
+from iafd.final import (mcc, f_beta, cost_at_threshold, threshold_min_cost, combine_spec, strategy_pos_weight, LOW_FPR_CAPS,
+                        allowed_mask, predict_gated)
 
 PAPER_MODELS = ["lr", "dt", "rf", "xgb", "lgbm"]
 OPS = ["cap", "recall", "min_cost"]
@@ -65,8 +66,11 @@ def main():
     if not sel_path.exists():
         sys.exit(f"{sel_path} not found. Run scripts/final_select.py first.")
     sel = json.loads(sel_path.read_text())
-    fs, members, agg_mode = sel["feature_set"], sel["ensemble"]["members"], sel["ensemble"]["aggregator"]
+    fs = sel["feature_set"]
+    members = [m if isinstance(m, dict) else {"model": m, "strategy": "plain"} for m in sel["ensemble"]["members"]]
+    agg_mode, weights = sel["ensemble"]["aggregator"], sel["ensemble"].get("weights")
     single_model, single_strategy = sel["single"]["model"], sel["single"]["strategy"]
+    gate, allowed = sel.get("gate", False), sel.get("allowed_types", [])
 
     path = resolve(cfg["paths"]["dev_parquet" if args.dev else "parquet"])
     df = load_dataset(path)
@@ -78,9 +82,11 @@ def main():
     cut = s.get("test_slice_step", 500)
     early = test["step"].to_numpy() <= cut
     ref_prev = float(ytr.mean())
+    gm = {k: (allowed_mask(d["type"], allowed) if gate else np.ones(len(d), bool)) for k, d in (("tr", train), ("va", val), ("te", test))}
     F = {name: tuple(build_features(d, name) for d in (train, val, test)) for name in {fs, "paper"} if not (name == "paper" and args.skip_paper)}
-    print(f"Final ensemble: {'+'.join(members)} ({agg_mode}) on '{fs}' | final single: {single_model} ({single_strategy}) | "
-          f"alert cost={args.alert_cost:g} | seeds={args.seeds}\n", flush=True)
+    mdesc = "+".join(f"{m['model']}({m['strategy']})" for m in members)
+    print(f"Final ensemble: {mdesc} [{agg_mode} {weights or ''}] on '{fs}' | final single: {single_model} ({single_strategy}) | "
+          f"type gating={'ON ' + str(allowed) if gate else 'OFF'} | alert cost={args.alert_cost:g} | seeds={args.seeds}\n", flush=True)
 
     base_seed = cfg["seed"]
     rows, curves, saved, seed0 = [], {}, {}, {}
@@ -88,25 +94,28 @@ def main():
         seed = base_seed + si
         cache = {}
 
-        def probs(feat, name, strategy="plain"):
-            key = (feat, name, strategy)
+        def probs(feat, name, strategy="plain", gated=False):
+            key = (feat, name, strategy, gated)
             if key not in cache:
                 Xtr, Xva, Xte = F[feat]
                 t0 = time.time()
-                w = strategy_pos_weight(ytr, strategy)
-                m = build_model(name, seed, cfg.get("models", {}).get(name), pos_weight=w).fit(Xtr, ytr)
-                cache[key] = (m, m.predict_proba(Xva)[:, 1], m.predict_proba(Xte)[:, 1])
-                print(f"  seed {seed}: trained {feat}/{name}/{strategy} ({time.time() - t0:.0f}s)", flush=True)
+                mt = gm["tr"] if gated else np.ones(len(Xtr), bool)
+                w = strategy_pos_weight(ytr[mt], strategy)
+                m = build_model(name, seed, cfg.get("models", {}).get(name), pos_weight=w).fit(Xtr[mt], ytr[mt])
+                mv = gm["va"] if gated else np.ones(len(Xva), bool)
+                me = gm["te"] if gated else np.ones(len(Xte), bool)
+                cache[key] = (m, predict_gated(m, Xva, mv), predict_gated(m, Xte, me))
+                print(f"  seed {seed}: trained {feat}/{name}/{strategy}{'/gated' if gated else ''} ({time.time() - t0:.0f}s)", flush=True)
             return cache[key]
 
         systems = {}
-        mem = [probs(fs, m) for m in members]
-        systems["final_ensemble"] = (combine([x[1] for x in mem], agg_mode), combine([x[2] for x in mem], agg_mode))
-        sm = probs(fs, single_model, single_strategy)
+        mem = [probs(fs, m["model"], m["strategy"], gate) for m in members]
+        systems["final_ensemble"] = (combine_spec([x[1] for x in mem], agg_mode, weights), combine_spec([x[2] for x in mem], agg_mode, weights))
+        sm = probs(fs, single_model, single_strategy, gate)
         systems["final_single"] = (sm[1], sm[2])
         if not args.skip_paper:
             pm = [probs("paper", m) for m in PAPER_MODELS]
-            systems["paper_ensemble"] = (combine([x[1] for x in pm], "mean"), combine([x[2] for x in pm], "mean"))
+            systems["paper_ensemble"] = (combine_spec([x[1] for x in pm], "mean"), combine_spec([x[2] for x in pm], "mean"))
 
         for sysname, (pv, pt) in systems.items():
             thr = {"cap": threshold_at_fpr(yva, pv, 1e-4), "recall": threshold_at_recall(yva, pv, 0.995),
@@ -138,10 +147,12 @@ def main():
             mdir = resolve(cfg["paths"]["models_dir"])
             mdir.mkdir(parents=True, exist_ok=True)
             cols = list(F[fs][0].columns)
-            joblib.dump({"members": members, "models": [probs(fs, m)[0] for m in members], "aggregator": agg_mode,
+            joblib.dump({"members": members, "models": [probs(fs, m["model"], m["strategy"], gate)[0] for m in members],
+                         "aggregator": agg_mode, "weights": weights, "gate": gate, "allowed_types": allowed,
                          "thresholds": saved["final_ensemble"], "columns": cols, "feature_set": fs},
                         mdir / f"{tag}final_ensemble.joblib")
-            joblib.dump({"model": single_model, "strategy": single_strategy, "estimator": probs(fs, single_model, single_strategy)[0],
+            joblib.dump({"model": single_model, "strategy": single_strategy, "estimator": probs(fs, single_model, single_strategy, gate)[0],
+                         "gate": gate, "allowed_types": allowed,
                          "thresholds": saved["final_single"], "columns": cols, "feature_set": fs},
                         mdir / f"{tag}final_single.joblib")
 
@@ -153,8 +164,8 @@ def main():
     order = {"final_ensemble": 0, "final_single": 1, "paper_ensemble": 2}
     pd.set_option("display.width", 220)
     md = [f"# Final results (test set, thresholds chosen on validation, {args.seeds} seed(s))\n",
-          f"Final ensemble: {'+'.join(members)} ({agg_mode}); final single model: {single_model} ({single_strategy}); "
-          f"features: {fs}. Paper baseline: raw 5 features, LR+DT+RF+XGB+LightGBM soft vote. Alert cost per false alarm: {args.alert_cost:g}.\n"]
+          f"Final ensemble: {mdesc} [{agg_mode} {weights or ''}]; final single model: {single_model} ({single_strategy}); "
+          f"features: {fs}; type gating: {'on (' + ', '.join(allowed) + ')' if gate else 'off'}. Paper baseline: raw 5 features, LR+DT+RF+XGB+LightGBM soft vote. Alert cost per false alarm: {args.alert_cost:g}.\n"]
     summary = []
     for op in OPS:
         tab = []

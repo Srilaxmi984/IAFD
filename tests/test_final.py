@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
 from iafd.final import (lfr_score, mcc, f_beta, cost_at_threshold, threshold_min_cost, fraud_subsample_mask,
-                        strategy_pos_weight, combine, all_subsets, LOW_FPR_CAPS)
-from iafd.evaluate import threshold_at_fpr, confusion_at_threshold
+                        strategy_pos_weight, combine, all_subsets, LOW_FPR_CAPS,
+                        selection_profile, positive_simplex, weighted_logit, combine_spec, allowed_types, allowed_mask, predict_gated)
+from iafd.evaluate import threshold_at_fpr, threshold_at_recall, confusion_at_threshold
+from iafd.explain import logit
 
 
 def test_lfr_matches_brute_force():
@@ -72,3 +74,46 @@ def test_combine_and_subsets():
     with pytest.raises(ValueError):
         combine([a], "bogus")
     assert len(list(all_subsets(["a", "b", "c", "d"]))) == 11               # sizes 2, 3, 4
+
+
+def test_selection_profile_matches_the_individual_functions():
+    rng = np.random.default_rng(3)
+    y = np.r_[np.zeros(30_000, int), np.ones(400, int)]
+    p = np.round(np.r_[rng.random(30_000) * 0.8, 0.2 + 0.8 * rng.random(400)], 3)     # ties on purpose
+    lfr, f5, f9 = selection_profile(y, p)
+    assert lfr == pytest.approx(lfr_score(y, p))
+    for target, got in ((0.995, f5), (0.999, f9)):
+        thr = threshold_at_recall(y, p, target)
+        assert got == confusion_at_threshold(y, p, thr)["fp"]
+
+
+def test_positive_simplex_counts_and_sums():
+    for k, n in ((2, 9), (3, 36), (4, 84)):
+        w = positive_simplex(k)
+        assert len(w) == n and all(abs(sum(x) - 1) < 1e-9 and min(x) > 0 for x in w)
+    assert positive_simplex(1) == [(1.0,)]
+
+
+def test_weighted_logit_equals_logit_mean_for_equal_weights():
+    a, b = np.array([0.1, 0.9, 0.4]), np.array([0.3, 0.7, 0.8])
+    assert np.allclose(weighted_logit([a, b], [0.5, 0.5]), combine([a, b], "logit_mean"))
+    assert np.allclose(weighted_logit([a, b], [1, 0]), np.clip(a, 1e-6, 1 - 1e-6))
+    assert np.allclose(combine_spec([a, b], "weighted_logit", [0.3, 0.7]), weighted_logit([a, b], [0.3, 0.7]))
+    assert np.allclose(combine_spec([a, b], "mean"), (a + b) / 2)
+
+
+def test_type_gating():
+    types = np.array(["TRANSFER", "PAYMENT", "CASH_OUT", "CASH_IN", "TRANSFER"])
+    y = np.array([1, 0, 1, 0, 0])
+    allowed = allowed_types(types, y)
+    assert allowed == ["CASH_OUT", "TRANSFER"]
+    mask = allowed_mask(types, allowed)
+    assert mask.tolist() == [True, False, True, False, True]
+
+    class Fake:
+        def predict_proba(self, X):
+            return np.column_stack([1 - X["a"].to_numpy(), X["a"].to_numpy()])
+    import pandas as pd
+    X = pd.DataFrame({"a": [0.9, 0.8, 0.7, 0.6, 0.5]})
+    assert predict_gated(Fake(), X, mask).tolist() == [0.9, 0.0, 0.7, 0.0, 0.5]
+    assert not predict_gated(Fake(), X, np.zeros(5, bool)).any()

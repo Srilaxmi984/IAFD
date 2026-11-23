@@ -13,18 +13,35 @@
     0.1,
     0.03
   ],
+  "gate": true,
+  "allowed_types": [
+    "CASH_OUT",
+    "TRANSFER"
+  ],
   "single": {
     "model": "rf",
     "strategy": "sqrtw",
-    "mean_lfr": 1.0,
-    "min_lfr": 1.0
+    "mean_lfr": 0.9998392282958198,
+    "min_lfr": 0.9995176848874598
   },
   "ensemble": {
     "members": [
-      "lr",
-      "rf"
+      {
+        "model": "rf",
+        "strategy": "plain"
+      },
+      {
+        "model": "xgb",
+        "strategy": "plain"
+      },
+      {
+        "model": "lgbm",
+        "strategy": "sqrtw"
+      }
     ],
     "aggregator": "mean",
-    "val_lfr": 0.9995176848874598
+    "weights": null,
+    "val_lfr": 1.0,
+    "val_fp_rec995": 0
   }
 }
