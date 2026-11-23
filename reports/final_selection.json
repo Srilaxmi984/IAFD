@@ -27,16 +27,12 @@
   "ensemble": {
     "members": [
       {
-        "model": "rf",
-        "strategy": "plain"
-      },
-      {
-        "model": "xgb",
-        "strategy": "plain"
-      },
-      {
         "model": "lgbm",
         "strategy": "sqrtw"
+      },
+      {
+        "model": "lr",
+        "strategy": "plain"
       }
     ],
     "aggregator": "mean",
