@@ -20,3 +20,5 @@ venv/
 
 # dev-sample results are not reportable
 reports/experiment_dev_*
+
+*.log

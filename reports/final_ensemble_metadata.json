@@ -1,0 +1,37 @@
+{
+  "feature_set": "plus",
+  "members": [
+    "rf",
+    "xgb",
+    "lgbm"
+  ],
+  "test": {
+    "tp": 4250,
+    "fp": 10,
+    "fn": 0,
+    "tn": 1244476,
+    "recall": 1.0,
+    "fpr": 8.035445959215291e-06,
+    "precision": 0.9976525821596244,
+    "pr_auc": 0.9999999999999999,
+    "roc_auc": 0.9999999999999999,
+    "prevalence": 0.0034034415601055788,
+    "precision_at_ref_prev": 0.9906665668816695
+  },
+  "ensemble": {
+    "fpr_cap": 0.0001,
+    "combine": "logit",
+    "weights": [
+      0.9,
+      0.1,
+      0.0
+    ],
+    "threshold": 0.05473534490716917,
+    "gate_cols": [
+      "type_CASH_OUT",
+      "type_TRANSFER"
+    ],
+    "val_frauds_lost_to_gate": 0,
+    "train_seconds": 405.31311321258545
+  }
+}
