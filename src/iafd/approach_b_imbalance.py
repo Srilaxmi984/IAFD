@@ -45,7 +45,8 @@ try:
         RUSBoostClassifier,
         BalancedBaggingClassifier,
     )
-    from imblearn.over_sampling import SMOTE, BorderlineSMOTE, ADASYN, SMOTEENN, SMOTETomek
+    from imblearn.over_sampling import SMOTE, BorderlineSMOTE, ADASYN
+    from imblearn.combine import SMOTEENN, SMOTETomek
     from imblearn.under_sampling import RandomUnderSampler
     from imblearn.pipeline import Pipeline as ImbPipeline
     IMBLEARN_AVAILABLE = True

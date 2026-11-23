@@ -17,8 +17,12 @@ venv/
 *.parquet
 *.csv
 !reports/*.csv
+reports/*predictions*.csv
 
-# dev-sample results are not reportable
+# dev-sample results and temporary runs are not reportable
 reports/experiment_dev_*
+reports/figures/shap/
+reports/shap_importance_*.csv
+reports/shap_local_explanations.json
 
 *.log

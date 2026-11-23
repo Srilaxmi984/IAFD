@@ -47,10 +47,8 @@ jobs:
           if ($env:FULL_DATA -eq "true") {
             python scripts/prepare_data.py
           } else {
-            echo "Using existing dev sample for CI"
-            if (-not (Test-Path "data/processed/paysim_dev.parquet")) {
-               Write-Error "Dev sample not found"
-            }
+            echo "Preparing synthetic dev sample for CI"
+            python -c "import sys; sys.path.insert(0, 'src'); from iafd.synthetic import make_synthetic_paysim; df = make_synthetic_paysim(30000); import pathlib; pathlib.Path('data/processed').mkdir(parents=True, exist_ok=True); df.to_parquet('data/processed/paysim_dev.parquet')"
           }
 
       - name: Train Approach A (Advanced Ensemble)
@@ -109,7 +107,7 @@ jobs:
           if ($env:FULL_DATA -eq "true") {
             python scripts/run_shap_both.py
           } else {
-            python scripts/run_shap_both.py --dev
+            python scripts/run_shap_both.py --dev --n-fraud 10 --n-legit 10 --max-evals 100
           }
         continue-on-error: false
 
@@ -140,7 +138,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: shap-figures
-          path: reports/figures/shap/
+          path: reports/figures/
           retention-days: 30
 
   quick-validation:

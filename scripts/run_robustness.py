@@ -20,8 +20,8 @@ from iafd.robustness import run_robustness_evaluation, generate_robustness_repor
 
 def main():
     ap = argparse.ArgumentParser(description="Run robustness testing on both approaches")
-    ap.add_argument("--approach-a", required=True, help="Path to Approach A model")
-    ap.add_argument("--approach-b", required=True, help="Path to Approach B model")
+    ap.add_argument("--approach-a", default="models/approach_a_stacking_plus.joblib", help="Path to Approach A model")
+    ap.add_argument("--approach-b", default="models/approach_b_balanced_rf_plus.joblib", help="Path to Approach B model")
     ap.add_argument("--feature-set", default="plus", choices=["paper", "engineered", "plus", "velocity", "no_dest"])
     ap.add_argument("--fpr-cap", type=float, default=0.0001)
     ap.add_argument("--dev", action="store_true", help="Use dev sample (NOT reportable)")

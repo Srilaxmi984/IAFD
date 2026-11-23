@@ -43,7 +43,8 @@ def create_ensemble_predict_fn(models: dict, columns: list[str]):
         # Average probabilities from all models
         probs = []
         for model in models.values():
-            prob = model.predict_proba(X_df)[:, 1]
+            proba = model.predict_proba(X_df)
+            prob = proba[:, 1] if getattr(proba, "ndim", 1) == 2 else proba
             probs.append(prob)
         return np.mean(np.column_stack(probs), axis=1)
     return predict_fn
@@ -53,7 +54,8 @@ def create_model_predict_fn(model, columns: list[str]):
     """Create prediction function for single model SHAP."""
     def predict_fn(X_arr):
         X_df = pd.DataFrame(X_arr, columns=columns)
-        return model.predict_proba(X_df)[:, 1]
+        proba = model.predict_proba(X_df)
+        return proba[:, 1] if getattr(proba, "ndim", 1) == 2 else proba
     return predict_fn
 
 
