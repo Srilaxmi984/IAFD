@@ -117,3 +117,12 @@ def test_type_gating():
     X = pd.DataFrame({"a": [0.9, 0.8, 0.7, 0.6, 0.5]})
     assert predict_gated(Fake(), X, mask).tolist() == [0.9, 0.0, 0.7, 0.0, 0.5]
     assert not predict_gated(Fake(), X, np.zeros(5, bool)).any()
+
+
+def test_selection_profile_with_recall_one_counts_false_alarms_above_the_lowest_fraud():
+    y = np.array([0, 0, 0, 0, 1, 1, 1])
+    p = np.array([0.1, 0.2, 0.7, 0.9, 0.5, 0.8, 0.95])
+    lfr, f995, f999, f100 = selection_profile(y, p, caps=(0.25,), recalls=(0.995, 0.999, 1.0))
+    assert f100 == 2                      # legit rows scoring above the lowest fraud (0.5): 0.7 and 0.9
+    assert f995 == f999 == f100           # with 3 frauds no misses are allowed at these targets
+    assert selection_profile(y, p)[1] == f995       # default call still returns three values

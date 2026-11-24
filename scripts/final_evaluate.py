@@ -57,11 +57,20 @@ def main():
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--alert-cost", type=float, default=10000.0, help="cost of one false alert, in the data's currency (an assumption; see the sensitivity table)")
     ap.add_argument("--skip-paper", action="store_true")
+    ap.add_argument("--paper-from-csv", default=None, help="reuse paper-baseline rows from an earlier final_results_by_seed.csv "
+                    "instead of retraining it (saves about an hour; its curve and cost-sensitivity rows are then omitted)")
     ap.add_argument("--dev", action="store_true", help="use the dev sample (NOT reportable)")
     args = ap.parse_args()
 
     tag = "dev_" if args.dev else ""
     out_dir = resolve(cfg["paths"]["reports_dir"])
+    old_paper = []
+    if args.paper_from_csv:
+        old = pd.read_csv(args.paper_from_csv)
+        old_paper = old[old["system"] == "paper_ensemble"].to_dict("records")
+        if not old_paper:
+            sys.exit(f"no paper_ensemble rows in {args.paper_from_csv}")
+        args.skip_paper = True
     sel_path = out_dir / f"{tag}final_selection.json"
     if not sel_path.exists():
         sys.exit(f"{sel_path} not found. Run scripts/final_select.py first.")
@@ -156,6 +165,8 @@ def main():
                          "thresholds": saved["final_single"], "columns": cols, "feature_set": fs},
                         mdir / f"{tag}final_single.joblib")
 
+    used = {base_seed + i for i in range(args.seeds)}
+    rows.extend(r for r in old_paper if int(r["seed"]) in used)
     res = pd.DataFrame(rows)
     res.to_csv(out_dir / f"{tag}final_results_by_seed.csv", index=False)
 

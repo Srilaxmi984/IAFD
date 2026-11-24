@@ -106,7 +106,8 @@ def all_subsets(names, min_size: int = 2):
 
 # ---------------------------------------------------------------- selection without accidental ties
 def selection_profile(y: np.ndarray, p: np.ndarray, caps=LOW_FPR_CAPS, recalls=(0.995, 0.999)):
-    """(LFR, false positives needed for recall >= 0.995, ... >= 0.999), all on the given (validation) data.
+    """(LFR, then the false positives needed for each recall target), all on the given (validation) data.
+    recalls=(0.995, 0.999, 1.0) adds the false alarms needed to catch EVERY fraud (a stricter, non-saturating check).
     One sort of each class, so it is cheap enough to score hundreds of ensemble candidates."""
     neg, pos = np.sort(p[y == 0]), np.sort(p[y == 1])
     nn, npos = len(neg), len(pos)
@@ -122,7 +123,7 @@ def selection_profile(y: np.ndarray, p: np.ndarray, caps=LOW_FPR_CAPS, recalls=(
         m = int(np.floor((1 - r) * npos))
         thr = np.nextafter(pos[m], -np.inf) if m < npos else np.inf
         fps.append(int(nn - np.searchsorted(neg, thr, side="right")))
-    return float(np.mean(recs)), fps[0], fps[1]
+    return (float(np.mean(recs)), *fps)
 
 
 def positive_simplex(k: int, units: int = 10):

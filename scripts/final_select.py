@@ -4,10 +4,10 @@
   (only a fraction of the TRAIN frauds kept), with and without a class weight. The winner has the best mean LFR
   (mean recall at low FPR caps, on validation) across the imbalance levels, i.e. it degrades least as imbalance grows.
   FINAL ENSEMBLE: every combination of 2+ members, averaged by mean, logit-mean, or a validation-fitted WEIGHTED logit
-  blend (weights on a 0.1 grid, all strictly positive), is scored on validation.
-  Ranking is lexicographic, so near-ties are never decided by enumeration order:
-     1. LFR (4 decimals)  2. false alarms needed for 99.5% recall  3. false alarms for 99.9% recall
-     4. fewer members     5. weights closer to equal
+  blend (weights on a 0.1 grid, all strictly positive), is scored on validation AT EVERY IMBALANCE LEVEL, because at the
+  natural imbalance validation saturates (many candidates are perfect). Ranking is lexicographic:
+     1. mean LFR across levels  2. worst-level LFR  3. false alarms needed for 100% recall  4. ... for 99.5% recall
+     5. fewer members          6. weights closer to equal   (the script prints how many candidates still tie)
   TYPE GATING (default on): transaction types with no fraud in TRAIN are excluded from fitting and scored exactly 0.
   They still count in every FPR denominator.
 
@@ -102,37 +102,42 @@ def main():
     print(agg.to_string(index=False))
     print(f"\n=> FINAL SINGLE MODEL: {best_single['model']} with strategy '{best_single['strategy']}'")
 
-    # ---------------- ensemble: members = each model's best natural-level strategy
-    nat = sdf[sdf["level"] == 1.0].copy()
-    nat["k1"], nat["srank"] = nat["val_lfr"].round(4), nat["strategy"].map({"plain": 0, "sqrtw": 1})
-    nat = nat.sort_values(["model", "k1", "val_fp_rec995", "srank"], ascending=[True, False, True, True])
-    member_cfg = {r["model"]: r["strategy"] for _, r in nat.groupby("model").head(1).iterrows()}
+    # ---------------- ensemble: members = each model's best strategy across the imbalance levels
+    member_cfg = {r["model"]: r["strategy"] for _, r in agg.groupby("model").head(1).iterrows()}
     names = list(member_cfg)
-    P = {n: vp[(n, member_cfg[n], 1.0)] for n in names}
-    Z = {n: logit(P[n]) for n in names}
-    print("\nEnsemble members (each model's best natural-imbalance strategy):", member_cfg)
+    P = {lv: {n: vp[(n, member_cfg[n], lv)] for n in names} for lv in levels}
+    Z = {lv: {n: logit(P[lv][n]) for n in names} for lv in levels}
+    print("\nEnsemble members (each model's best strategy across imbalance levels):", member_cfg)
+    RECALLS = (0.995, 0.999, 1.0)
+
+    def over_levels(score_fn):
+        prof = [selection_profile(yva, score_fn(lv), recalls=RECALLS) for lv in levels]
+        return {"mean_lfr": float(np.mean([q[0] for q in prof])), "min_lfr": float(np.min([q[0] for q in prof])),
+                "mean_fp995": float(np.mean([q[1] for q in prof])), "mean_fp100": float(np.mean([q[3] for q in prof]))}
 
     erows = []
     for size in range(2, len(names) + 1):
         for sub in itertools.combinations(names, size):
             for mode in ("mean", "logit_mean"):
-                lfr, f5, f9 = selection_profile(yva, combine([P[n] for n in sub], mode))
                 erows.append({"members": "+".join(sub), "n": size, "aggregator": mode, "weights": "", "dist": 0.0,
-                              "val_lfr": lfr, "val_fp_rec995": f5, "val_fp_rec999": f9})
+                              **over_levels(lambda lv: combine([P[lv][n] for n in sub], mode))})
             for w in positive_simplex(size):
-                z = sum(wi * Z[n] for wi, n in zip(w, sub))            # ranking only: the sigmoid is monotone
-                lfr, f5, f9 = selection_profile(yva, z)
                 erows.append({"members": "+".join(sub), "n": size, "aggregator": "weighted_logit",
                               "weights": "/".join(f"{x:.1f}" for x in w), "dist": float(np.abs(np.array(w) - 1 / size).sum()),
-                              "val_lfr": lfr, "val_fp_rec995": f5, "val_fp_rec999": f9})
+                              **over_levels(lambda lv: sum(wi * Z[lv][n] for wi, n in zip(w, sub)))})   # ranking only: sigmoid is monotone
+        print(f"  scored all {size}-member ensembles", flush=True)
     edf = pd.DataFrame(erows)
-    edf["k1"] = edf["val_lfr"].round(4)
-    edf = edf.sort_values(["k1", "val_fp_rec995", "val_fp_rec999", "n", "dist"], ascending=[False, True, True, True, True]).drop(columns=["k1", "dist"])
+    edf["k1"], edf["k2"] = edf["mean_lfr"].round(4), edf["min_lfr"].round(4)
+    edf = edf.sort_values(["k1", "k2", "mean_fp100", "mean_fp995", "n", "dist"],
+                          ascending=[False, False, True, True, True, True]).drop(columns=["k1", "k2", "dist"])
     best = edf.iloc[0]
-    print(f"\nENSEMBLE candidates scored: {len(edf)}. Top 10 (validation):")
+    tied = int(((edf["mean_lfr"].round(4) == round(best["mean_lfr"], 4)) & (edf["min_lfr"].round(4) == round(best["min_lfr"], 4))
+                & (edf["mean_fp100"] == best["mean_fp100"]) & (edf["mean_fp995"] == best["mean_fp995"])).sum())
+    print(f"\nENSEMBLE candidates scored: {len(edf)} (each at {len(levels)} imbalance levels). Top 10:")
     print(edf.head(10).to_string(index=False))
-    print("\nIndividual members, validation LFR / false alarms for 99.5% recall:")
-    print({n: (round(selection_profile(yva, P[n])[0], 4), selection_profile(yva, P[n])[1]) for n in names})
+    if tied > 1:
+        print(f"\nNOTE: {tied} candidates tie with the winner on every criterion; the winner is then the one with the "
+              f"fewest members and weights closest to equal, NOT a proven best.")
     print(f"\n=> FINAL ENSEMBLE: {best['members']} | {best['aggregator']} {best['weights']}")
 
     out_dir = resolve(cfg["paths"]["reports_dir"])
@@ -146,8 +151,8 @@ def main():
            "single": {"model": str(best_single["model"]), "strategy": str(best_single["strategy"]),
                       "mean_lfr": float(best_single["mean_lfr"]), "min_lfr": float(best_single["min_lfr"])},
            "ensemble": {"members": [{"model": n, "strategy": member_cfg[n]} for n in str(best["members"]).split("+")],
-                        "aggregator": str(best["aggregator"]), "weights": wts, "val_lfr": float(best["val_lfr"]),
-                        "val_fp_rec995": int(best["val_fp_rec995"])}}
+                        "aggregator": str(best["aggregator"]), "weights": wts, "mean_lfr": float(best["mean_lfr"]),
+                        "min_lfr": float(best["min_lfr"]), "candidates_tied_with_winner": tied}}
     (out_dir / f"{tag}final_selection.json").write_text(json.dumps(sel, indent=2))
     print(f"\nSaved reports/{tag}final_selection.json (+ _single.csv, _ensemble.csv)")
 
