@@ -27,17 +27,21 @@
   "ensemble": {
     "members": [
       {
-        "model": "lgbm",
+        "model": "rf",
         "strategy": "sqrtw"
       },
       {
-        "model": "lr",
+        "model": "xgb",
         "strategy": "plain"
       }
     ],
-    "aggregator": "mean",
-    "weights": null,
-    "val_lfr": 1.0,
-    "val_fp_rec995": 0
+    "aggregator": "weighted_logit",
+    "weights": [
+      0.8,
+      0.2
+    ],
+    "mean_lfr": 1.0,
+    "min_lfr": 1.0,
+    "candidates_tied_with_winner": 2
   }
 }
