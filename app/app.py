@@ -17,7 +17,8 @@ import streamlit as st
 
 from iafd.config import load_config, resolve
 from iafd.data import TYPES
-from iafd.serving import (OPS, OP_LABEL, default_background, decide, explain_row, load_bundles, make_row, score_row)
+from iafd.serving import (OPS, OP_LABEL, auto_balances, default_background, decide, explain_row, load_bundles,
+                          make_row, score_row)
 
 st.set_page_config(page_title="Explainable fraud detection", layout="wide")
 st.title("Explainable AI-Based Fraud Detection Using Ensemble Learning and SHAP")
@@ -43,14 +44,22 @@ except FileNotFoundError as e:
     st.error(str(e))
     st.stop()
 
+# (type, amount, sender before, sender after, receiver before, receiver after, auto-fill the 'after' balances)
 PRESETS = {
-    "Full-balance TRANSFER (fraud-like)": ("TRANSFER", 250000.0, 250000.0, 0.0, 0.0, 0.0),
-    "Ordinary CASH_OUT": ("CASH_OUT", 5000.0, 80000.0, 75000.0, 20000.0, 25000.0),
-    "Small PAYMENT": ("PAYMENT", 64.0, 900.0, 836.0, 0.0, 0.0),
+    "Full-balance TRANSFER (fraud-like)": ("TRANSFER", 250000.0, 250000.0, 0.0, 0.0, 0.0, False),
+    "Ordinary CASH_OUT": ("CASH_OUT", 5000.0, 80000.0, 75000.0, 20000.0, 25000.0, True),
+    "Small PAYMENT": ("PAYMENT", 64.0, 900.0, 836.0, 0.0, 0.0, True),
 }
-FIELDS = ("type", "amount", "old_o", "new_o", "old_d", "new_d")
+FIELDS = ("type", "amount", "old_o", "new_o", "old_d", "new_d", "auto")
 for k, v in zip(FIELDS, PRESETS["Full-balance TRANSFER (fraud-like)"]):
     st.session_state.setdefault(k, v)
+
+
+def recalc():
+    """Fill the 'after' balances from the amount when automatic mode is on."""
+    if st.session_state["auto"]:
+        st.session_state["new_o"], st.session_state["new_d"] = auto_balances(
+            st.session_state["type"], st.session_state["amount"], st.session_state["old_o"], st.session_state["old_d"])
 
 
 def load_preset(name):
@@ -72,13 +81,18 @@ with st.sidebar:
     st.caption(f"Using: {desc}. Features: {b['feature_set']}. Type gating: "
                f"{'on, scored types ' + ', '.join(b['allowed_types']) if b.get('gate') else 'off'}.")
 
+st.checkbox("Fill the 'after' balances automatically (a normal transaction)", key="auto", on_change=recalc,
+            help="Sender pays the amount (CASH_IN adds it); the receiver gains it for TRANSFER and CASH_OUT. "
+                 "Turn it off to enter balances that do not add up, which is what many frauds in PaySim look like "
+                 "(for example the receiver balance staying unchanged).")
+auto = st.session_state["auto"]
 c1, c2, c3 = st.columns(3)
-tx_type = c1.selectbox("Transaction type", list(TYPES), key="type")
-amount = c1.number_input("Amount", min_value=0.0, step=100.0, key="amount")
-old_o = c2.number_input("Sender balance before", min_value=0.0, step=100.0, key="old_o")
-new_o = c2.number_input("Sender balance after", min_value=0.0, step=100.0, key="new_o")
-old_d = c3.number_input("Receiver balance before", min_value=0.0, step=100.0, key="old_d")
-new_d = c3.number_input("Receiver balance after", min_value=0.0, step=100.0, key="new_d")
+tx_type = c1.selectbox("Transaction type", list(TYPES), key="type", on_change=recalc)
+amount = c1.number_input("Amount", min_value=0.0, step=100.0, key="amount", on_change=recalc)
+old_o = c2.number_input("Sender balance before", min_value=0.0, step=100.0, key="old_o", on_change=recalc)
+new_o = c2.number_input("Sender balance after", min_value=0.0, step=100.0, key="new_o", disabled=auto)
+old_d = c3.number_input("Receiver balance before", min_value=0.0, step=100.0, key="old_d", on_change=recalc)
+new_d = c3.number_input("Receiver balance after", min_value=0.0, step=100.0, key="new_d", disabled=auto)
 
 if st.button("Score this transaction", type="primary"):
     row = make_row(tx_type, amount, old_o, new_o, old_d, new_d)

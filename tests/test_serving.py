@@ -4,7 +4,7 @@ import pytest
 from iafd.data import compact_frame, chronological_split
 from iafd.features import build_features
 from iafd.models import build_model
-from iafd.serving import make_row, score_row, decide, features_for, model_proba, default_background, explain_row
+from iafd.serving import auto_balances, make_row, score_row, decide, features_for, model_proba, default_background, explain_row
 from iafd.synthetic import make_synthetic_paysim
 
 
@@ -65,3 +65,12 @@ def test_explanations_are_additive_for_the_tree_and_the_ensemble(bundles):
         target = p if scale == "probability" else float(np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6))))
         assert abs(sv.sum() + base - target) < 0.05
         assert list(sv.index) == b["columns"]
+
+
+def test_auto_balances_follow_the_transaction_type():
+    assert auto_balances("TRANSFER", 100, 250, 40) == (150.0, 140.0)
+    assert auto_balances("CASH_OUT", 100, 250, 40) == (150.0, 140.0)
+    assert auto_balances("CASH_IN", 100, 250, 40) == (350.0, 40.0)
+    assert auto_balances("PAYMENT", 64, 900, 0) == (836.0, 0.0)
+    assert auto_balances("DEBIT", 10, 5, 7) == (0.0, 7.0)              # sender balance never goes below 0
+    assert auto_balances("TRANSFER", -5, 100, 0) == (100.0, 0.0)       # negative amounts are ignored

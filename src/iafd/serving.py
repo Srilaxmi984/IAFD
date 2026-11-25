@@ -30,6 +30,15 @@ def load_bundles(models_dir) -> dict:
     return out
 
 
+def auto_balances(tx_type: str, amount: float, old_orig: float, old_dest: float) -> tuple[float, float]:
+    """'After' balances of a NORMAL transaction: the sender pays the amount (CASH_IN adds it), the receiver gains it
+    for TRANSFER and CASH_OUT and is unchanged otherwise. The sender balance never goes below 0."""
+    amount = max(float(amount), 0.0)
+    new_orig = old_orig + amount if tx_type == "CASH_IN" else max(old_orig - amount, 0.0)
+    new_dest = old_dest + amount if tx_type in ("TRANSFER", "CASH_OUT") else old_dest
+    return round(float(new_orig), 2), round(float(new_dest), 2)
+
+
 def make_row(tx_type: str, amount: float, old_orig: float, new_orig: float, old_dest: float, new_dest: float,
              step: int = 1) -> pd.DataFrame:
     if tx_type not in TYPES:
