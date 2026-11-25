@@ -4,7 +4,7 @@ import pytest
 from iafd.data import compact_frame, chronological_split
 from iafd.features import build_features
 from iafd.models import build_model
-from iafd.serving import auto_balances, make_row, score_row, decide, features_for, model_proba, default_background, explain_row
+from iafd.serving import format_probability, verdict, auto_balances, make_row, score_row, decide, features_for, model_proba, default_background, explain_row
 from iafd.synthetic import make_synthetic_paysim
 
 
@@ -74,3 +74,22 @@ def test_auto_balances_follow_the_transaction_type():
     assert auto_balances("PAYMENT", 64, 900, 0) == (836.0, 0.0)
     assert auto_balances("DEBIT", 10, 5, 7) == (0.0, 7.0)              # sender balance never goes below 0
     assert auto_balances("TRANSFER", -5, 100, 0) == (100.0, 0.0)       # negative amounts are ignored
+
+
+def test_format_probability_never_prints_a_misleading_zero():
+    assert format_probability(0.97234) == "0.9723"
+    assert format_probability(0.0019) == "0.0019"
+    assert format_probability(1.5e-6) == "1.50e-06"
+    assert format_probability(0.0) == "0"
+
+
+def test_verdict_texts():
+    f = verdict(0.4, 0.1, True)
+    assert f["flagged"] and f["headline"].startswith("FLAGGED") and f["ratio_text"] == "4x the threshold"
+    n = verdict(1.5e-6, 1.9e-3, False)
+    assert not n["flagged"] and n["headline"].startswith("NOT FLAGGED") and "below the flag threshold" in n["explanation"]
+    assert n["ratio_text"] == "0.000789x the threshold"
+    g = verdict(0.0, 0.5, False, gated=True)
+    assert g["headline"].startswith("NOT FLAGGED") and g["ratio_text"] == "scored 0"
+    never = verdict(0.9, float("inf"), False)
+    assert never["ratio_text"] == "no threshold" and "never flags" in never["explanation"]

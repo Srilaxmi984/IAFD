@@ -66,6 +66,32 @@ def score_row(bundle: dict, row: pd.DataFrame) -> dict:
     return {"score": score, "gated": gated}
 
 
+def format_probability(p: float) -> str:
+    """Readable probability: four decimals when it is at least 0.001, scientific notation below (0.0000 says nothing)."""
+    p = float(p)
+    if p == 0.0:
+        return "0"
+    return f"{p:.4f}" if abs(p) >= 1e-3 else f"{p:.2e}"
+
+
+def verdict(score: float, thr: float, flagged: bool, gated: bool = False) -> dict:
+    """Plain-language outcome: headline, score-to-threshold ratio text, and one explanatory sentence."""
+    finite = np.isfinite(thr) and thr > 0
+    ratio = f"{score / thr:.3g}x the threshold" if finite and score > 0 else ("below the threshold" if finite else "no threshold")
+    if gated:
+        return {"headline": "NOT FLAGGED: this transaction type never contained fraud in the training data, so it is scored 0.",
+                "ratio_text": "scored 0", "flagged": False,
+                "explanation": "Type gating is a property of PaySim, not a guarantee for other data."}
+    if flagged:
+        return {"headline": "FLAGGED: the model treats this transaction as likely fraud (its score is above the threshold).",
+                "ratio_text": ratio, "flagged": True,
+                "explanation": f"Score {format_probability(score)} is above the flag threshold {format_probability(thr)}: send it for review."}
+    why = ("this operating point never flags anything" if not np.isfinite(thr)
+           else f"score {format_probability(score)} is below the flag threshold {format_probability(thr)}")
+    return {"headline": "NOT FLAGGED: the model treats this transaction as legitimate (its score is below the threshold).",
+            "ratio_text": ratio, "flagged": False, "explanation": f"No alert: {why}."}
+
+
 def decide(bundle: dict, score: float, op: str) -> tuple[bool, float]:
     thr = float(bundle["thresholds"][op])
     return bool(score > thr), thr

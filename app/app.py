@@ -17,8 +17,8 @@ import streamlit as st
 
 from iafd.config import load_config, resolve
 from iafd.data import TYPES
-from iafd.serving import (OPS, OP_LABEL, auto_balances, default_background, decide, explain_row, load_bundles,
-                          make_row, score_row)
+from iafd.serving import (OPS, OP_LABEL, auto_balances, default_background, decide, explain_row, format_probability,
+                          load_bundles, make_row, score_row, verdict)
 
 st.set_page_config(page_title="Explainable fraud detection", layout="wide")
 st.title("Explainable AI-Based Fraud Detection Using Ensemble Learning and SHAP")
@@ -98,10 +98,14 @@ if st.button("Score this transaction", type="primary"):
     row = make_row(tx_type, amount, old_o, new_o, old_d, new_d)
     res = score_row(b, row)
     flagged, thr = decide(b, res["score"], op)
+    v = verdict(res["score"], thr, flagged, res["gated"])
+    (st.error if flagged else st.success)(v["headline"])
     m1, m2, m3 = st.columns(3)
-    m1.metric("Fraud score", f"{res['score']:.4f}")
-    m2.metric("Threshold", "never flags" if not np.isfinite(thr) else f"{thr:.4f}")
-    m3.metric("Decision", "FLAG for review" if flagged else "No alert")
+    m1.metric("Fraud score", format_probability(res["score"]))
+    m2.metric("Flag threshold", "never flags" if not np.isfinite(thr) else format_probability(thr))
+    m3.metric("Score vs threshold", v["ratio_text"])
+    st.caption(v["explanation"] + " A transaction is flagged when its score is above the threshold; the threshold was "
+               "chosen on validation data for the selected operating point.")
     if res["gated"]:
         st.info(f"Type {tx_type} had no fraud in the training data, so it is scored 0 and never flagged. "
                 f"This is a property of PaySim, not a guarantee for other data.")
